@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import pkg from "pg";
+const { Pool } = pkg;
 import { eq, and, desc } from "drizzle-orm";
 import {
   organizations, users, contacts, jobs, templates, campaigns, messages,
