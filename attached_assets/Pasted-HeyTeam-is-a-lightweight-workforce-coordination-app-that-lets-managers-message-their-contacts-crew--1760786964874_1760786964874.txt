@@ -1,0 +1,216 @@
+HeyTeam is a lightweight workforce coordination app that lets managers message their contacts (crew) by SMS and email, collect instant availability responses (Y/N or shift options), view confirmations on a calendar, and handle reschedules with automatic notifications. Subscriptions are managed in Stripe. Data/auth live in Supabase. SMS is handled by Twilio. Calendar sync supports Google Calendar and Microsoft Outlook via OAuth.
+
+1) Messaging (SMS + Email, bi-directional)
+
+What it does:
+Managers create a Job (name, location, start/end time), select a message template, choose recipients (individuals, groups, or all contacts), and send a broadcast via SMS and/or email. Crew members reply directly by SMS (e.g., “Y”, “N”, “1/2/3”), and the system auto-classifies responses: Confirmed, Maybe, or Declined. Inbound and outbound messages are threaded per contact + job. STOP/UNSUBSCRIBE is honoured immediately to opt the contact out of future sends.
+
+Key behaviors:
+
+Tokenized templates (e.g., {FirstName}, {JobName}, {Date}, {Location}) render per recipient.
+
+Reply parsing maps Y/YES/👍 → Confirmed; N/NO/👎 → Declined; 1/2/3 → shift choices (AM/PM/Full).
+
+Delivery statuses are stored; failed sends are retried with backoff.
+
+Quiet hours (default 22:00–07:00) respected per contact unless overridden.
+
+Tech stack:
+
+Frontend: Next.js (App Router) + TypeScript for compose/send UI and live roster view.
+
+Backend: Next.js API routes for send pipeline + Twilio webhook; Node/Twilio SDK.
+
+Database: Supabase Postgres for Contacts, Jobs, Templates, Campaigns, Messages, Availability.
+
+Auth: Supabase Auth (email/magic link).
+
+SMS: Twilio Programmable Messaging (Messaging Service SID).
+
+Email (MVP option): Postmark or SendGrid (simple transactional template; inbound parsing can be deferred by using signed confirmation links).
+
+2) Calendar (Manager view of jobs + accepted team)
+
+What it does:
+Managers see a calendar (month/week) of Jobs. Each Job card/bubble shows start/end time, location, and a fill indicator (e.g., 4/6 confirmed). Clicking a Job opens the Roster board: columns for Confirmed, Maybe, Declined, and No Reply, plus a conversation drawer per contact. Managers can drag contacts between columns to override the classification if needed.
+
+Key behaviors:
+
+Calendar view is read-only for date context; the Job detail page handles edits.
+
+Fill percentage = Confirmed / Required Headcount (if set).
+
+CSV/PDF export of the confirmed roster for the foreman (optional MVP add-on).
+
+Tech stack:
+
+Frontend: Next.js + React calendar component (e.g., a lightweight headless or custom view), Tailwind CSS.
+
+Backend: Next.js API routes to aggregate availability per job.
+
+Database: Supabase queries joining jobs + availability + contacts.
+
+3) Sync with Outlook & Google Calendar (OAuth + push)
+
+What it does:
+When a Job is created or updated, HeyTeam can push a corresponding calendar event into the manager’s connected calendar(s). Confirmed contacts with email addresses may be added as event attendees (optional in MVP). Tokens are stored securely and refreshed as needed.
+
+Key behaviors:
+
+Google OAuth and Microsoft OAuth (Graph) are implemented via simple callback routes.
+
+On Job create/update: push or update a single external event per provider and store the external event ID for reconciliation.
+
+Pull/webhook-based reconciliation is optional for MVP; start with push-only.
+
+Tech stack:
+
+OAuth: Google APIs (Calendar v3), Microsoft Graph Calendar.
+
+Backend: Next.js API routes (/api/oauth/google, /api/oauth/microsoft) to exchange codes, store tokens in Supabase, and push events.
+
+Database: calendar_connections (provider, tokens, expiry) and calendar_events (job_id ↔ external_event_id mapping).
+
+4) Reschedule & Notify (broadcast changes)
+
+What it does:
+When a Job time or date changes, the manager edits the Job. HeyTeam updates the external Google/Outlook events (if connected) and sends a reschedule broadcast to all Confirmed contacts by SMS and/or email. Recipients reply Y/N to re-confirm.
+
+Key behaviors:
+
+PATCH /api/jobs/:id triggers reschedule logic:
+
+Update job in DB.
+
+Update Google/Outlook event for that Job (if mapped).
+
+Send a Reschedule template to confirmed contacts.
+
+Replies follow the same parsing flow and update availability.
+
+Tech stack:
+
+Backend: Next.js API route for reschedule orchestration.
+
+Integrations: Twilio for SMS notifications; Google/Microsoft calendar update calls.
+
+Database: Update jobs, consult availability for confirmed contacts, and use calendar_events to update external events.
+
+5) Subscriptions & Usage Limits (Stripe)
+
+What it does:
+Plans (e.g., Basic/Pro/Business) set monthly SMS credits and features (e.g., number of calendar connections). Stripe Checkout handles initial purchase; the Stripe Customer Portal handles upgrades/cancellations. Webhooks keep local subscription status and credits in sync.
+
+Key behaviors:
+
+On checkout.session.completed, create or update the org’s subscription row with plan, status, and initial message credits.
+
+On customer.subscription.updated, adjust plan, status, and next renewal.
+
+Decrement SMS credits per outbound message; block or apply overage if credits exhausted (MVP: block).
+
+Tech stack:
+
+Billing: Stripe (Checkout + Customer Portal + Webhooks).
+
+Backend: Next.js API routes /api/stripe/* and webhook verification.
+
+Database: subscriptions table (plan, status, message_credits, renews_at, stripe ids).
+
+6) Data Model (Supabase)
+
+Core tables:
+
+profiles (user profile), contacts (crew), groups (optional),
+
+jobs (name, location, start/end), templates (sms/email),
+
+campaigns (a specific send), messages (in/out, status),
+
+availability (job_id + contact_id → confirmed/maybe/declined + shift),
+
+calendar_connections (OAuth tokens), calendar_events (external mapping),
+
+subscriptions (Stripe linkage + credits).
+
+Security:
+
+Start with RLS disabled during development. Add RLS policies before production.
+
+Store and honour opt-outs (contacts.is_opted_out), log lawful basis if/when collected.
+
+Tech stack:
+
+DB/Auth: Supabase (Postgres + Auth + JS client).
+
+Migrations: SQL scripts to create tables and constraints; indexes on messages(contact_id, created_at) and availability(job_id, contact_id).
+
+7) Architecture & Observability
+
+Pattern:
+
+Next.js handles UI and serverless API routes.
+
+Twilio/Stripe post to API webhooks.
+
+Business logic is isolated in /lib/* helpers (template render, reply classification, Twilio send).
+
+Observability:
+
+Log every send + provider status (queued/sent/delivered/failed).
+
+Track reply rate and time-to-fill per job.
+
+Basic health: /api/health returns DB + integration reachability (optional).
+
+Tech stack:
+
+Runtime: Node 18+ on Replit.
+
+Libraries: twilio, stripe, @supabase/supabase-js, zod, date-fns.
+
+8) UX Summary (MVP Screens)
+
+Dashboard: Jobs list with fill % and status.
+
+Create Job: Name, location, start/end, notes, headcount.
+
+Compose Send: Pick template, audience (contacts/groups), channel(s), preview, send.
+
+Job Detail / Roster Board: Columns (Confirmed/Maybe/Declined/No Reply), contact drawer with thread and quick replies.
+
+Calendar: Month/week view of jobs + confirmed counts.
+
+Templates: CRUD with variables and quick replies.
+
+Contacts: CRUD, CSV import, tags/skills, DND, opt-out flag.
+
+Billing: Plan info, credits left, “Manage in Stripe” button.
+
+9) Compliance & Deliverability (UK/EU friendly)
+
+Honour STOP/UNSUBSCRIBE immediately (set is_opted_out = true).
+
+Respect quiet hours by default.
+
+Use a dedicated Twilio Messaging Service and throttle sends to avoid carrier filtering.
+
+Keep messages concise; include org name for trust.
+
+Store minimal PII; avoid sensitive categories.
+
+10) What to Build First (Milestones)
+
+Core DB + Auth: Supabase schema, seed data, login.
+
+Jobs + Templates + Contacts CRUD.
+
+Send SMS + Twilio inbound webhook + reply parsing (end-to-end Y/N loop).
+
+Roster board + Calendar view.
+
+Reschedule & Notify flow (PATCH job → update calendar (local) → broadcast).
+
+Stripe Checkout + Webhook → lock features by plan/credits.
+
+Google/Outlook push sync (OAuth + create/update event).
