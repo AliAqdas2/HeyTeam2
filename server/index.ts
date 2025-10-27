@@ -20,9 +20,10 @@ app.use(
       checkPeriod: 86400000, // 24 hours
     }),
     cookie: {
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.COOKIE_SECURE === "true", // Only enable secure cookies when explicitly set (for HTTPS)
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      sameSite: "lax", // Helps with CSRF protection while allowing normal navigation
     },
   })
 );

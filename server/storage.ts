@@ -50,6 +50,7 @@ export interface IStorage {
   getContacts(userId: string): Promise<Contact[]>;
   getContact(id: string): Promise<Contact | undefined>;
   getContactByRosterToken(token: string): Promise<Contact | undefined>;
+  getContactByPhone(phone: string): Promise<Contact | undefined>;
   createContact(userId: string, contact: InsertContact): Promise<Contact>;
   updateContact(id: string, updates: Partial<InsertContact>): Promise<Contact>;
   deleteContact(id: string): Promise<void>;
@@ -222,32 +223,6 @@ export class MemStorage implements IStorage {
     this.passwordResetTokens.delete(token);
   }
 
-  constructor() {
-    const mockUserId = "mock-user-1";
-    const mockUser: User = {
-      id: mockUserId,
-      username: "demo",
-      password: "demo",
-      email: "demo@heyteam.app",
-      stripeCustomerId: null,
-      stripeSubscriptionId: null,
-    };
-    this.users.set(mockUserId, mockUser);
-
-    const mockSubscription: Subscription = {
-      id: randomUUID(),
-      userId: mockUserId,
-      plan: "pro",
-      status: "active",
-      messageCredits: 500,
-      renewsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      stripeSubscriptionId: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.subscriptions.set(mockSubscription.id, mockSubscription);
-  }
-
   async updateUserStripeInfo(userId: string, stripeCustomerId: string, stripeSubscriptionId: string): Promise<User> {
     const user = this.users.get(userId);
     if (!user) throw new Error("User not found");
@@ -263,6 +238,14 @@ export class MemStorage implements IStorage {
 
   async getContact(id: string): Promise<Contact | undefined> {
     return this.contacts.get(id);
+  }
+
+  async getContactByRosterToken(token: string): Promise<Contact | undefined> {
+    return Array.from(this.contacts.values()).find((c) => c.rosterToken === token);
+  }
+
+  async getContactByPhone(phone: string): Promise<Contact | undefined> {
+    return Array.from(this.contacts.values()).find((c) => c.phone === phone);
   }
 
   async createContact(userId: string, insertContact: InsertContact): Promise<Contact> {

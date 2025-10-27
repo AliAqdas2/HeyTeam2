@@ -14,6 +14,7 @@ import { insertJobSchema, insertContactSchema, insertTemplateSchema, insertAvail
 import Stripe from "stripe";
 import authRoutes from "./auth-routes";
 import PDFDocument from "pdfkit";
+import { sendTeamMessageNotification } from "./email";
 
 const creditService = new CreditService(storage);
 
@@ -94,17 +95,6 @@ function constructE164Phone(countryCode: string, phone: string): string {
   // Prepend the country dial code
   const dialCode = COUNTRY_DIAL_CODES[countryCode] || "+1";
   return dialCode + cleaned;
-}
-
-// Get the demo user ID (temporary until auth is implemented)
-let MOCK_USER_ID: string | null = null;
-
-async function getMockUserId(): Promise<string> {
-  if (MOCK_USER_ID) return MOCK_USER_ID;
-  const user = await storage.getUserByUsername("demo");
-  if (!user) throw new Error("Demo user not found");
-  MOCK_USER_ID = user.id;
-  return MOCK_USER_ID;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -382,22 +372,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Cannot message users from other organizations" });
       }
       
-      // In a production app, this would send an email or in-app notification
-      // For now, we'll just log it and return success
-      console.log(`Message from ${req.user.username} to ${recipient.username}: ${content}`);
-      console.log(`Recipient email: ${recipient.email}`);
+      // Send email notification to recipient
+      const loginUrl = `${req.protocol}://${req.get('host')}/auth`;
+      const senderName = req.user.firstName && req.user.lastName 
+        ? `${req.user.firstName} ${req.user.lastName}`
+        : req.user.username;
       
-      // TODO: In production, integrate with email service to send the message
-      // await sendEmail({
-      //   to: recipient.email,
-      //   from: req.user.email,
-      //   subject: `Message from ${req.user.username}`,
-      //   body: content
-      // });
+      try {
+        await sendTeamMessageNotification(
+          recipient.email,
+          senderName,
+          content,
+          loginUrl
+        );
+        console.log(`Team message notification email sent to ${recipient.email}`);
+      } catch (emailError) {
+        console.error('Failed to send team message notification email:', emailError);
+        // Continue anyway - the message intent has been conveyed
+      }
       
       res.json({ 
         success: true,
-        message: "Message sent successfully (logged to console in development mode)",
+        message: "Message sent successfully",
         recipient: {
           id: recipient.id,
           username: recipient.username,
@@ -410,9 +406,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get("/api/jobs", async (req, res) => {
+  app.get("/api/jobs", requireAuth, async (req: any, res) => {
     try {
-      const jobs = await storage.getJobs(await getMockUserId());
+      const jobs = await storage.getJobs(req.user.id);
       const jobsWithAvailability = await Promise.all(
         jobs.map(async (job) => {
           const availability = await storage.getAvailability(job.id);
@@ -466,7 +462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/jobs", async (req, res) => {
+  app.post("/api/jobs", requireAuth, async (req: any, res) => {
     try {
       const body = {
         ...req.body,
@@ -474,9 +470,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endTime: req.body.endTime ? new Date(req.body.endTime) : undefined,
       };
       const validated = insertJobSchema.parse(body);
-      const job = await storage.createJob(await getMockUserId(), validated);
+      const job = await storage.createJob(req.user.id, validated);
 
-      await syncJobToCalendars(await getMockUserId(), job);
+      await syncJobToCalendars(req.user.id, job);
 
       res.json(job);
     } catch (error: any) {
@@ -484,7 +480,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/jobs/:id", async (req, res) => {
+  app.patch("/api/jobs/:id", requireAuth, async (req: any, res) => {
     try {
       const body = {
         ...req.body,
@@ -494,7 +490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validated = insertJobSchema.partial().parse(body);
       const job = await storage.updateJob(req.params.id, validated);
 
-      await syncJobToCalendars(await getMockUserId(), job);
+      await syncJobToCalendars(req.user.id, job);
 
       const availability = await storage.getAvailability(job.id);
       const confirmedContacts = await Promise.all(
@@ -503,7 +499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .map((a) => storage.getContact(a.contactId))
       );
 
-      await sendRescheduleNotifications(await getMockUserId(), job, confirmedContacts.filter(Boolean) as any[]);
+      await sendRescheduleNotifications(req.user.id, job, confirmedContacts.filter(Boolean) as any[]);
 
       res.json(job);
     } catch (error: any) {
@@ -511,7 +507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/jobs/:id", async (req, res) => {
+  app.delete("/api/jobs/:id", requireAuth, async (req: any, res) => {
     try {
       const job = await storage.getJob(req.params.id);
       if (!job) {
@@ -519,7 +515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify the job belongs to the user
-      if (job.userId !== await getMockUserId()) {
+      if (job.userId !== req.user.id) {
         return res.status(403).json({ message: "Not authorized to delete this job" });
       }
 
@@ -530,16 +526,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/contacts", async (req, res) => {
+  app.get("/api/contacts", requireAuth, async (req: any, res) => {
     try {
-      const contacts = await storage.getContacts(await getMockUserId());
+      const contacts = await storage.getContacts(req.user.id);
       res.json(contacts);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/contacts/:id/current-job", async (req, res) => {
+  app.get("/api/contacts/:id/current-job", requireAuth, async (req: any, res) => {
     try {
       const { id } = req.params;
       
@@ -549,7 +545,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Contact not found" });
       }
       
-      if (contact.userId !== await getMockUserId()) {
+      if (contact.userId !== req.user.id) {
         return res.status(404).json({ message: "Contact not found" });
       }
       
@@ -563,17 +559,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/contacts", async (req, res) => {
+  app.post("/api/contacts", requireAuth, async (req: any, res) => {
     try {
       const validated = insertContactSchema.parse(req.body);
-      const contact = await storage.createContact(await getMockUserId(), validated);
+      const contact = await storage.createContact(req.user.id, validated);
       res.json(contact);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/contacts/upload-image", async (req, res) => {
+  app.post("/api/contacts/upload-image", requireAuth, async (req: any, res) => {
     try {
       const fs = await import('fs/promises');
       const path = await import('path');
@@ -634,25 +630,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/contacts/:id", async (req, res) => {
+  app.patch("/api/contacts/:id", requireAuth, async (req: any, res) => {
     try {
-      const contact = await storage.updateContact(req.params.id, req.body);
-      res.json(contact);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.delete("/api/contacts/:id", async (req, res) => {
-    try {
-      const userId = await getMockUserId();
-      
       // Verify the contact belongs to the user
       const contact = await storage.getContact(req.params.id);
       if (!contact) {
         return res.status(404).json({ message: "Contact not found" });
       }
-      if (contact.userId !== userId) {
+      if (contact.userId !== req.user.id) {
+        return res.status(403).json({ message: "Not authorized to update this contact" });
+      }
+      
+      const updatedContact = await storage.updateContact(req.params.id, req.body);
+      res.json(updatedContact);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/contacts/:id", requireAuth, async (req: any, res) => {
+    try {
+      // Verify the contact belongs to the user
+      const contact = await storage.getContact(req.params.id);
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+      if (contact.userId !== req.user.id) {
         return res.status(403).json({ message: "Not authorized to delete this contact" });
       }
       
@@ -663,9 +666,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/contacts/import", async (req, res) => {
+  app.post("/api/contacts/import", requireAuth, async (req: any, res) => {
     try {
-      const userId = await getMockUserId();
+      const userId = req.user.id;
       const { contacts: csvContacts } = req.body;
       
       if (!Array.isArray(csvContacts)) {
@@ -727,9 +730,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate or get roster token for a contact
-  app.get("/api/contacts/:id/roster-token", async (req, res) => {
+  app.get("/api/contacts/:id/roster-token", requireAuth, async (req: any, res) => {
     try {
-      const userId = await getMockUserId();
       const contact = await storage.getContact(req.params.id);
       
       if (!contact) {
@@ -737,7 +739,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Verify contact belongs to user
-      if (contact.userId !== userId) {
+      if (contact.userId !== req.user.id) {
         return res.status(403).json({ message: "Not authorized" });
       }
       
@@ -802,9 +804,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/reports/resource-allocation", async (req, res) => {
+  app.get("/api/reports/resource-allocation", requireAuth, async (req: any, res) => {
     try {
-      const userId = await getMockUserId();
+      const userId = req.user.id;
       
       // Fetch all data needed for the report
       const contacts = await storage.getContacts(userId);
@@ -965,27 +967,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/templates", async (req, res) => {
+  app.get("/api/templates", requireAuth, async (req: any, res) => {
     try {
-      const templates = await storage.getTemplates(await getMockUserId());
+      const templates = await storage.getTemplates(req.user.id);
       res.json(templates);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/templates", async (req, res) => {
+  app.post("/api/templates", requireAuth, async (req: any, res) => {
     try {
       const validated = insertTemplateSchema.parse(req.body);
-      const template = await storage.createTemplate(await getMockUserId(), validated);
+      const template = await storage.createTemplate(req.user.id, validated);
       res.json(template);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.delete("/api/templates/:id", async (req, res) => {
+  app.delete("/api/templates/:id", requireAuth, async (req: any, res) => {
     try {
+      // Verify the template belongs to the user
+      const template = await storage.getTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      if (template.userId !== req.user.id) {
+        return res.status(403).json({ message: "Not authorized to delete this template" });
+      }
+      
       await storage.deleteTemplate(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
@@ -993,10 +1004,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/send-message", async (req, res) => {
+  app.post("/api/send-message", requireAuth, async (req: any, res) => {
     try {
       const { jobId, templateId, contactIds } = req.body;
-      const userId = await getMockUserId();
+      const userId = req.user.id;
 
       // Check if user has enough credits
       const availableCredits = await creditService.getAvailableCredits(userId);
@@ -1122,10 +1133,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/messages/bulk-sms", async (req, res) => {
+  app.post("/api/messages/bulk-sms", requireAuth, async (req: any, res) => {
     try {
       const { contactIds, message } = req.body;
-      const userId = await getMockUserId();
+      const userId = req.user.id;
 
       if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
         return res.status(400).json({ message: "Contact IDs required" });
@@ -1431,8 +1442,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { From, Body, MessageSid } = req.body;
 
-      const contacts = await storage.getContacts(await getMockUserId());
-      const contact = contacts.find((c) => c.phone === From);
+      // Find contact by phone number across all users
+      const contact = await storage.getContactByPhone(From);
 
       if (!contact) {
         return res.status(200).send("OK");
@@ -1450,7 +1461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const jobId = recentMessages.length > 0 ? recentMessages[recentMessages.length - 1].jobId : null;
 
-      await storage.createMessage(await getMockUserId(), {
+      await storage.createMessage(contact.userId, {
         contactId: contact.id,
         jobId: jobId,
         campaignId: null,
@@ -1505,8 +1516,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/messages/:contactId", async (req, res) => {
+  app.get("/api/messages/:contactId", requireAuth, async (req: any, res) => {
     try {
+      // Verify the contact belongs to the user
+      const contact = await storage.getContact(req.params.contactId);
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+      if (contact.userId !== req.user.id) {
+        return res.status(403).json({ message: "Not authorized to view messages for this contact" });
+      }
+      
       const messages = await storage.getMessages(req.params.contactId);
       res.json(messages);
     } catch (error: any) {
@@ -1514,9 +1534,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/availability", async (req, res) => {
+  app.post("/api/availability", requireAuth, async (req: any, res) => {
     try {
       const validated = insertAvailabilitySchema.parse(req.body);
+      
+      // Verify the contact belongs to the user
+      const contact = await storage.getContact(validated.contactId);
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+      if (contact.userId !== req.user.id) {
+        return res.status(403).json({ message: "Not authorized to create availability for this contact" });
+      }
+      
       const availability = await storage.createAvailability(validated);
       res.json(availability);
     } catch (error: any) {
@@ -1524,22 +1554,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/availability/:id", async (req, res) => {
+  app.patch("/api/availability/:id", requireAuth, async (req: any, res) => {
     try {
       const { status, shiftPreference } = req.body;
-      const availability = await storage.updateAvailability(req.params.id, {
+      
+      // Get all availability records for the user and find the specific one
+      const allAvailability = await storage.getAllAvailability(req.user.id);
+      const availabilityRecord = allAvailability.find(a => a.id === req.params.id);
+      
+      if (!availabilityRecord) {
+        return res.status(404).json({ message: "Availability record not found or not authorized" });
+      }
+      
+      const updated = await storage.updateAvailability(req.params.id, {
         status,
         shiftPreference,
       });
-      res.json(availability);
+      res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/subscription", async (req, res) => {
+  app.get("/api/subscription", requireAuth, async (req: any, res) => {
     try {
-      const subscription = await storage.getSubscription(await getMockUserId());
+      const subscription = await storage.getSubscription(req.user.id);
       if (!subscription) {
         return res.status(404).json({ message: "Subscription not found" });
       }
@@ -1550,9 +1589,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Credit system routes
-  app.get("/api/credits", async (req, res) => {
+  app.get("/api/credits", requireAuth, async (req: any, res) => {
     try {
-      const userId = await getMockUserId();
+      const userId = req.user.id;
       const [available, breakdown] = await Promise.all([
         creditService.getAvailableCredits(userId),
         creditService.getCreditBreakdown(userId),
@@ -1688,9 +1727,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/credit-grants", async (req, res) => {
+  app.get("/api/credit-grants", requireAuth, async (req: any, res) => {
     try {
-      const userId = await getMockUserId();
+      const userId = req.user.id;
       const grants = await storage.getCreditGrants(userId);
       res.json(grants);
     } catch (error: any) {
@@ -1698,9 +1737,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/credit-transactions", async (req, res) => {
+  app.get("/api/credit-transactions", requireAuth, async (req: any, res) => {
     try {
-      const userId = await getMockUserId();
+      const userId = req.user.id;
       const transactions = await storage.getCreditTransactions(userId);
       res.json(transactions);
     } catch (error: any) {

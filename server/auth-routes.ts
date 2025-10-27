@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 import { CreditService } from "./lib/credit-service";
+import { sendPasswordResetEmail } from "./email";
 
 const creditService = new CreditService(storage);
 
@@ -225,10 +226,16 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       expiresAt,
     });
 
-    // TODO: Send email with reset link
-    // For now, log the token (in production, send via email)
-    console.log(`Password reset token for ${email}: ${token}`);
-    console.log(`Reset link: http://localhost:5000/reset-password?token=${token}`);
+    // Send password reset email
+    const resetUrl = `${req.protocol}://${req.get('host')}/reset-password?token=${token}`;
+    
+    try {
+      await sendPasswordResetEmail(email, token, resetUrl);
+      console.log(`Password reset email sent to ${email}`);
+    } catch (emailError) {
+      console.error('Failed to send password reset email:', emailError);
+      // Still return success to prevent email enumeration
+    }
 
     res.json({ message: "If the email exists, a reset link will be sent" });
   } catch (error) {

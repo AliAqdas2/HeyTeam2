@@ -1,7 +1,9 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import pkg from "pg";
-const { Pool } = pkg;
+import { drizzle } from "drizzle-orm/neon-serverless";
+import { Pool, neonConfig } from "@neondatabase/serverless";
 import { eq, and, desc } from "drizzle-orm";
+import ws from "ws";
+
+neonConfig.webSocketConstructor = ws;
 import {
   organizations, users, contacts, jobs, templates, campaigns, messages,
   availability, subscriptions,
@@ -219,6 +221,11 @@ export class DbStorage implements IStorage {
 
   async getContactByRosterToken(token: string): Promise<Contact | undefined> {
     const result = await this.db.select().from(contacts).where(eq(contacts.rosterToken, token));
+    return result[0];
+  }
+
+  async getContactByPhone(phone: string): Promise<Contact | undefined> {
+    const result = await this.db.select().from(contacts).where(eq(contacts.phone, phone));
     return result[0];
   }
 
