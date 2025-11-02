@@ -48,7 +48,58 @@ router.post("/register", async (req: Request, res: Response) => {
       null  // No expiry for trial credits
     );
 
+    // Create sample job for new users
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0);
+    
+    const endTime = new Date(tomorrow);
+    endTime.setHours(17, 0, 0, 0);
+
+    await storage.createJob(user.id, {
+      name: "Job A",
+      location: "Sample Location",
+      startTime: tomorrow,
+      endTime: endTime,
+      requiredHeadcount: 5,
+      notes: "This is a sample job to help you get started. You can edit or delete it.",
+    });
+
+    // Create preset SMS templates for new users
+    const defaultTemplates = [
+      {
+        name: "Job Invitation",
+        content: "Hi {FirstName}, we have a new job opportunity: {JobName} at {Location} from {FromDate} {FromTime} to {ToDate} {ToTime}. Reply Y to confirm or N to decline.",
+        includeRosterLink: true,
+      },
+      {
+        name: "Job Cancellation",
+        content: "Hi {FirstName}, unfortunately {JobName} scheduled for {Date} at {Time} has been cancelled. We'll notify you of new opportunities soon.",
+        includeRosterLink: false,
+      },
+      {
+        name: "Job Reminder",
+        content: "Reminder: {FirstName}, you're confirmed for {JobName} tomorrow at {Location}. Start time: {Time}. See you there!",
+        includeRosterLink: true,
+      },
+      {
+        name: "Availability Request",
+        content: "Hi {FirstName}, we need crew for {JobName} on {Date} at {Location}. Are you available? Reply Y for yes or N for no.",
+        includeRosterLink: false,
+      },
+      {
+        name: "Shift Confirmation",
+        content: "Confirmed! {FirstName}, you're scheduled for {JobName} at {Location} from {FromTime} to {ToTime} on {FromDate}. Thanks!",
+        includeRosterLink: true,
+      },
+    ];
+
+    for (const template of defaultTemplates) {
+      await storage.createTemplate(user.id, template);
+    }
+
     console.log(`New registration: ${username} - Granted 10 trial SMS credits`);
+    console.log(`Created sample job and ${defaultTemplates.length} preset templates`);
     console.log(`Email: ${email}`);
     console.log(`Mobile: ${countryCode} ${mobileNumber}`);
     console.log(`Account created but not verified`);

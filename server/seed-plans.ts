@@ -1,9 +1,9 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import ws from "ws";
+import "dotenv/config";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pkg from "pg";
 import { subscriptionPlans, smsBundles } from "@shared/schema";
 
-neonConfig.webSocketConstructor = ws;
+const { Pool } = pkg;
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
 const db = drizzle(pool);
@@ -27,7 +27,6 @@ async function seedPlans() {
       priceUSD: 3700, // $37.00
       priceEUR: 3400, // €34.00
       monthlyCredits: 500,
-      calendarIntegrations: 1,
       supportLevel: "email",
       customTemplates: false,
       autoFollowUp: false,
@@ -45,7 +44,6 @@ async function seedPlans() {
       priceUSD: 10000, // $100.00
       priceEUR: 9200, // €92.00
       monthlyCredits: 3000,
-      calendarIntegrations: 5,
       supportLevel: "priority",
       customTemplates: true,
       autoFollowUp: true,
@@ -63,7 +61,6 @@ async function seedPlans() {
       priceUSD: 25200, // $252.00
       priceEUR: 23200, // €232.00
       monthlyCredits: 10000,
-      calendarIntegrations: 99,
       supportLevel: "dedicated",
       customTemplates: true,
       autoFollowUp: true,

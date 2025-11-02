@@ -948,7 +948,7 @@ function ContactForm({ contact, onSuccess }: { contact?: Contact | null; onSucce
     defaultValues: contact ? {
       firstName: contact.firstName,
       lastName: contact.lastName,
-      countryCode: contact.countryCode || "US",
+      countryCode: contact.countryCode || "GB",
       phone: contact.phone,
       email: contact.email || "",
       address: contact.address || "",
@@ -965,7 +965,7 @@ function ContactForm({ contact, onSuccess }: { contact?: Contact | null; onSucce
     } : {
       firstName: "",
       lastName: "",
-      countryCode: "US",
+      countryCode: "GB",
       phone: "",
       email: "",
       address: "",
@@ -1514,6 +1514,32 @@ function ImportCSV({ onSuccess }: { onSuccess: () => void }) {
     importMutation.mutate(formData);
   };
 
+  const downloadTemplate = () => {
+    // Create CSV template with headers and sample data
+    const csvContent = `firstName,lastName,phone,email
+John,Smith,447700900123,john.smith@example.com
+Jane,Doe,447700900456,jane.doe@example.com
+Mike,Johnson,447700900789,`;
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'contacts_import_template.csv');
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: "Template Downloaded",
+      description: "CSV template has been downloaded. You can open it in Excel.",
+    });
+  };
+
   return (
     <>
       <DialogHeader>
@@ -1521,9 +1547,21 @@ function ImportCSV({ onSuccess }: { onSuccess: () => void }) {
       </DialogHeader>
       <div className="space-y-4">
         <div>
-          <p className="text-sm text-muted-foreground mb-4">
-            Upload a CSV file with columns: firstName, lastName, phone, email (optional)
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-muted-foreground">
+              Upload a CSV file with columns: firstName, lastName, phone, email (optional)
+            </p>
+            <Button 
+              variant="link" 
+              size="sm" 
+              onClick={downloadTemplate}
+              className="gap-1"
+              data-testid="button-download-template"
+            >
+              <Download className="h-4 w-4" />
+              Download Template
+            </Button>
+          </div>
           <Input
             type="file"
             accept=".csv"

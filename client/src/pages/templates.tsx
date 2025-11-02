@@ -28,6 +28,10 @@ const availableTokens = [
   { token: "{JobName}", description: "Job name" },
   { token: "{Date}", description: "Job date" },
   { token: "{Time}", description: "Job time" },
+  { token: "{FromDate}", description: "Job start date" },
+  { token: "{ToDate}", description: "Job end date" },
+  { token: "{FromTime}", description: "Job start time" },
+  { token: "{ToTime}", description: "Job end time" },
   { token: "{Location}", description: "Job location" },
 ];
 

@@ -1,9 +1,7 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import { eq, and, desc } from "drizzle-orm";
-import ws from "ws";
-
-neonConfig.webSocketConstructor = ws;
+import { drizzle } from "drizzle-orm/node-postgres";
+import pkg from "pg";
+const { Pool } = pkg;
+import { eq, and, desc, or, sql } from "drizzle-orm";
 import {
   organizations, users, contacts, jobs, templates, campaigns, messages,
   availability, subscriptions,
@@ -31,7 +29,10 @@ export class DbStorage implements IStorage {
   private db;
 
   constructor() {
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL environment variable is required");
+    }
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     this.db = drizzle(pool);
   }
 
@@ -107,22 +108,18 @@ export class DbStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    let userData = insertUser;
+    // Create a new organization for the user
+    const org = await this.createOrganization({
+      name: `${insertUser.username}'s Organization`,
+    });
     
-    // If no organizationId provided, create a new organization for the user
-    if (!insertUser.organizationId) {
-      const org = await this.createOrganization({
-        name: `${insertUser.username}'s Organization`,
-      });
-      
-      userData = {
-        ...insertUser,
-        organizationId: org.id,
-        teamRole: insertUser.teamRole || "owner",
-      };
-    }
+    // Create user with organization and default team role
+    const userData = {
+      ...insertUser,
+      organizationId: org.id,
+      teamRole: "owner",
+    };
     
-    // Create user
     const result = await this.db.insert(users).values(userData).returning();
     const user = result[0];
     
@@ -225,8 +222,63 @@ export class DbStorage implements IStorage {
   }
 
   async getContactByPhone(phone: string): Promise<Contact | undefined> {
-    const result = await this.db.select().from(contacts).where(eq(contacts.phone, phone));
-    return result[0];
+    // Twilio sends full E.164 format (e.g., +441234567890)
+    // We need to match against our separate countryCode + phone fields
+    
+    // First try exact match on phone field (for backward compatibility)
+    let result = await this.db.select().from(contacts).where(eq(contacts.phone, phone));
+    if (result.length > 0) {
+      return result[0];
+    }
+    
+    // If no exact match, fetch all contacts and match using constructE164Phone logic
+    // Strip all non-digit characters from incoming number for comparison
+    const cleanedIncoming = phone.replace(/\D/g, '');
+    
+    if (!cleanedIncoming || cleanedIncoming.length < 10) {
+      return undefined;
+    }
+    
+    // Get all contacts to check against
+    const allContacts = await this.db.select().from(contacts);
+    
+    // Country dial code mapping
+    const COUNTRY_DIAL_CODES: Record<string, string> = {
+      "US": "+1", "CA": "+1", "GB": "+44", "AU": "+61", "NZ": "+64",
+      "IE": "+353", "IN": "+91", "SG": "+65", "MX": "+52", "DE": "+49",
+      "FR": "+33", "ES": "+34", "IT": "+39",
+    };
+    
+    // Helper to construct E164 from contact's countryCode + phone
+    const constructE164 = (countryCode: string, contactPhone: string): string => {
+      let cleaned = contactPhone.replace(/\D/g, '');
+      
+      // If phone starts with +, handle it
+      if (contactPhone.trim().startsWith('+')) {
+        return '+' + cleaned;
+      }
+      
+      // Remove leading 0 for most countries (except Italy)
+      if (cleaned.startsWith('0') && countryCode !== 'IT') {
+        cleaned = cleaned.substring(1);
+      }
+      
+      // Prepend country dial code
+      const dialCode = COUNTRY_DIAL_CODES[countryCode] || "+1";
+      return dialCode + cleaned;
+    };
+    
+    // Find matching contact
+    for (const contact of allContacts) {
+      const constructedE164 = constructE164(contact.countryCode, contact.phone);
+      const cleanedConstructed = constructedE164.replace(/\D/g, '');
+      
+      if (cleanedConstructed === cleanedIncoming) {
+        return contact;
+      }
+    }
+    
+    return undefined;
   }
 
   async createContact(userId: string, contact: InsertContact): Promise<Contact> {

@@ -59,22 +59,34 @@ RESEND_FROM_EMAIL=noreply@yourdomain.com
 
 ## Environment Files
 
-Create a `.env` file in the root directory with the variables you need:
+Create a `.env` file in the root directory with all required variables:
 
 ```bash
-# .env
-PGUSER=postgres
-PGPASSWORD=sjadmin
-PGHOST=localhost
-PGPORT=5432
-PGDATABASE=HeyTeam
+# .env - Complete Example
 
-SESSION_SECRET=my-super-secret-key-change-in-production
+# Database (use DATABASE_URL for simplicity)
+DATABASE_URL=postgresql://postgres:sjadmin@localhost:5432/HeyTeam
+
+# Session & Security
+SESSION_SECRET=my-super-secret-key-change-in-production-use-random-string
+COOKIE_SECURE=false  # Set to "true" ONLY when using HTTPS in production
+
+# Server
 PORT=5000
 NODE_ENV=development
 
-# Only set COOKIE_SECURE=true when deploying with HTTPS
-# COOKIE_SECURE=true
+# Twilio (SMS messaging)
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_twilio_auth_token
+TWILIO_PHONE_NUMBER=+1234567890
+
+# Stripe (Payments)
+STRIPE_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Email (Resend)
+RESEND_API_KEY=re_xxxxxxxxxxxxx
+RESEND_FROM_EMAIL=noreply@yourdomain.com
 ```
 
 ## Important Security Notes

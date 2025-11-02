@@ -19,7 +19,7 @@ import { sendTeamMessageNotification } from "./email";
 const creditService = new CreditService(storage);
 
 const stripe = process.env.STRIPE_SECRET_KEY 
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2023-10-16" })
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-09-30.clover" })
   : null;
 
 // Country dial codes mapping
@@ -182,15 +182,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create user in the same organization
       const newUser = await storage.createUser({
         username,
-        firstName,
-        lastName,
         email,
         password: hashedPassword,
-        organizationId: req.user.organizationId,
-        teamRole: teamRole || "member",
-        isAdmin: false,
-        stripeCustomerId: null,
-        stripeSubscriptionId: null,
       });
       
       // Don't return password hash
@@ -302,8 +295,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // In a real app, we'd handle user deletion more carefully
-      // For now, just update their organizationId to null
-      await storage.updateUser(userId, { organizationId: null });
+      // For now, we'll just disable the user
+      await storage.disableUser(userId);
       
       res.json({ success: true });
     } catch (error: any) {
@@ -1315,23 +1308,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const userSub = await storage.getSubscription(userId);
               if (userSub) {
                 await storage.updateSubscription(userId, {
-                  planId,
-                  currency,
-                  stripeSubscriptionId: subscriptionId,
-                  status: subscription.status,
-                  currentPeriodStart: new Date(subscription.current_period_start * 1000),
-                  currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-                });
-              }
+                planId,
+                currency,
+                stripeSubscriptionId: subscriptionId,
+                status: subscription.status,
+                currentPeriodStart: new Date((subscription as any).current_period_start * 1000),
+                currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+              });
+            }
 
-              // Grant credits for the subscription period
-              const expiryDate = new Date(subscription.current_period_end * 1000);
-              await creditService.grantCredits(
-                userId,
-                plan.monthlyCredits,
-                `Subscription: ${plan.name}`,
-                expiryDate
-              );
+            // Grant credits for the subscription period
+            const expiryDate = new Date((subscription as any).current_period_end * 1000);
+            await creditService.grantCredits(
+              userId,
+              "subscription",
+              plan.monthlyCredits,
+              planId,
+              expiryDate
+            );
 
               console.log(`Granted ${plan.monthlyCredits} credits to user ${userId} for subscription ${planId}`);
             } else if (session.mode === "payment" && session.payment_intent) {
@@ -1353,8 +1347,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Grant credits (bundles don't expire)
               await creditService.grantCredits(
                 userId,
+                "bundle",
                 bundle.credits,
-                `SMS Bundle: ${bundle.name}`,
+                bundleId,
                 null
               );
 
@@ -1363,14 +1358,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             break;
           }
 
-          case "invoice.payment_succeeded": {
-            const invoice = event.data.object as Stripe.Invoice;
-            const subscriptionId = invoice.subscription as string;
+        case "invoice.payment_succeeded": {
+          const invoice = event.data.object as any;
+          const subscriptionId = typeof invoice.subscription === 'string' 
+            ? invoice.subscription 
+            : invoice.subscription?.id;
 
-            if (!subscriptionId) {
-              console.log("Invoice not for a subscription, skipping");
-              break;
-            }
+          if (!subscriptionId) {
+            console.log("Invoice not for a subscription, skipping");
+            break;
+          }
 
             // Find the subscription
             const subscriptions = await storage.getAllSubscriptions?.() || [];
@@ -1384,28 +1381,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Get the subscription from Stripe
             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
-            // Update subscription dates
-            await storage.updateSubscription(userSub.userId, {
-              status: subscription.status,
-              currentPeriodStart: new Date(subscription.current_period_start * 1000),
-              currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-            });
+          // Update subscription dates
+          await storage.updateSubscription(userSub.userId, {
+            status: subscription.status,
+            currentPeriodStart: new Date((subscription as any).current_period_start * 1000),
+            currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+          });
 
-            // Grant credits for the new period (if not the first invoice)
-            if (invoice.billing_reason === "subscription_cycle" && userSub.planId) {
-              const plan = await storage.getSubscriptionPlan(userSub.planId);
-              if (plan) {
-                const expiryDate = new Date(subscription.current_period_end * 1000);
-                await creditService.grantCredits(
-                  userSub.userId,
-                  plan.monthlyCredits,
-                  `Subscription renewal: ${plan.name}`,
-                  expiryDate
-                );
+          // Grant credits for the new period (if not the first invoice)
+          if ((invoice as any).billing_reason === "subscription_cycle" && userSub.planId) {
+            const plan = await storage.getSubscriptionPlan(userSub.planId);
+            if (plan) {
+              const expiryDate = new Date((subscription as any).current_period_end * 1000);
+              await creditService.grantCredits(
+                userSub.userId,
+                "subscription",
+                plan.monthlyCredits,
+                userSub.planId,
+                expiryDate
+              );
 
-                console.log(`Granted ${plan.monthlyCredits} credits to user ${userSub.userId} for renewal`);
-              }
+              console.log(`Granted ${plan.monthlyCredits} credits to user ${userSub.userId} for renewal`);
             }
+          }
             break;
           }
 
@@ -1438,10 +1436,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  app.post("/api/twilio/webhook", async (req, res) => {
+  app.post("/webhook/twilio/sms", async (req, res) => {
     try {
       const { From, Body, MessageSid } = req.body;
-
+      console.log(req.body);
       // Find contact by phone number across all users
       const contact = await storage.getContactByPhone(From);
 
@@ -1474,12 +1472,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (jobId) {
         const parsed = parseReply(Body);
         const availability = await storage.getAvailabilityForContact(jobId, contact.id);
-
+        console.log("Parsed reply:", parsed);
         if (availability) {
           await storage.updateAvailability(availability.id, {
             status: parsed.status,
             shiftPreference: parsed.shiftPreference || availability.shiftPreference,
           });
+
+          // Update contact status based on their reply
+          if (parsed.status === "confirmed") {
+            // Contact accepted the job - mark them as "on_job"
+            await storage.updateContact(contact.id, { status: "on_job" });
+            console.log("on job");
+          } else if (parsed.status === "declined") {
+            // Contact declined - mark them as "free" (available for other jobs)
+            await storage.updateContact(contact.id, { status: "free" });
+          }
+          // "maybe" and "no_reply" don't change contact status
+        }
+
+        // Send automatic acknowledgement SMS
+        const job = await storage.getJob(jobId);
+        if (job && parsed.status !== "no_reply") {
+          await sendAcknowledgementSMS(contact, job, parsed, contact.userId);
         }
       }
 
@@ -1491,7 +1506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all messages for current user with enriched contact/job data
-  app.get("/api/messages/history", requireAuth, async (req, res) => {
+  app.get("/api/messages/history", requireAuth, async (req: any, res) => {
     try {
       const userId = req.user!.id;
       const messages = await storage.getAllMessagesForUser(userId);
@@ -1570,6 +1585,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status,
         shiftPreference,
       });
+
+      // Update contact status when availability changes (roster board drag-and-drop)
+      if (status) {
+        const contact = await storage.getContact(availabilityRecord.contactId);
+        if (contact) {
+          if (status === "confirmed") {
+            // Contact confirmed for job - mark them as "on_job"
+            await storage.updateContact(contact.id, { status: "on_job" });
+          } else if (status === "declined") {
+            // Contact declined - mark them as "free" (available for other jobs)
+            await storage.updateContact(contact.id, { status: "free" });
+          }
+          // "maybe" and "no_reply" don't change contact status
+        }
+      }
+      
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1684,7 +1715,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         });
         customerId = customer.id;
-        await storage.updateUser(userId, { stripeCustomerId: customerId });
+        // Update user with Stripe customer ID (subscription ID will be set later)
+        await storage.updateUserStripeInfo(userId, customerId, user.stripeSubscriptionId || "");
       }
 
       // Create checkout session
@@ -1717,12 +1749,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
 
-      // Update user's currency preference
-      await storage.updateUser(userId, { currency });
-
+      // Currency will be stored in subscription when webhook fires
+      
       res.json({ url: session.url });
     } catch (error: any) {
       console.error("Checkout session error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Process checkout session and grant credits immediately
+  app.post("/api/stripe/process-session", requireAuth, async (req: any, res) => {
+    try {
+      if (!stripe) {
+        return res.status(500).json({ message: "Stripe not configured" });
+      }
+      const { sessionId } = req.body;
+      const userId = req.user.id;
+      if (!sessionId) {
+        return res.status(400).json({ message: "Session ID required" });
+      }
+      // Retrieve the session from Stripe
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      
+      // Verify this session belongs to this user
+      if (session.metadata?.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      // Check if already processed (idempotency)
+      const existingSubscription = await storage.getSubscription(userId);
+      if (existingSubscription?.stripeSubscriptionId === session.subscription) {
+        return res.json({ 
+          message: "Already processed",
+          creditsGranted: 0 
+        });
+      }
+      let creditsGranted = 0;
+      if (session.mode === "subscription" && session.subscription) {
+        const subscriptionId = session.subscription as string;
+        const planId = session.metadata?.planId;
+        const currency = session.metadata?.currency || "GBP";
+        if (!planId) {
+          return res.status(400).json({ message: "Plan ID not found" });
+        }
+        const plan = await storage.getSubscriptionPlan(planId);
+        if (!plan) {
+          return res.status(404).json({ message: "Plan not found" });
+        }
+        // Get subscription details from Stripe
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        
+        // Get period dates from the first subscription item
+        const subscriptionItem = subscription.items?.data?.[0];
+        if (!subscriptionItem) {
+          return res.status(400).json({ message: "No subscription items found" });
+        }
+        
+        const currentPeriodStart = new Date(subscriptionItem.current_period_start * 1000);
+        const currentPeriodEnd = new Date(subscriptionItem.current_period_end * 1000);
+        
+        // Verify the dates are valid
+        if (isNaN(currentPeriodStart.getTime()) || isNaN(currentPeriodEnd.getTime())) {
+          return res.status(400).json({ message: "Invalid subscription timestamps" });
+        }
+        
+        // Update user's subscription
+        const userSub = await storage.getSubscription(userId);
+        if (userSub) {
+          await storage.updateSubscription(userId, {
+            planId,
+            currency,
+            stripeSubscriptionId: subscriptionId,
+            status: subscription.status,
+            currentPeriodStart,
+            currentPeriodEnd,
+          });
+        }
+        
+        // Grant credits immediately
+        await creditService.grantCredits(
+          userId,
+          "subscription",
+          plan.monthlyCredits,
+          planId,
+          currentPeriodEnd
+        );
+        creditsGranted = plan.monthlyCredits;
+        console.log(`Processed session ${sessionId}: Granted ${creditsGranted} credits to user ${userId}`);
+      }
+      res.json({ 
+        message: "Session processed successfully",
+        creditsGranted 
+      });
+    } catch (error: any) {
+      console.error("Process session error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -1781,9 +1901,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ]);
 
           // Calculate SMS volume (total messages sent) from credit transactions
-          const smsVolume = creditTransactions
-            .filter(t => t.type === "debit" && t.messageId)
-            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+        const smsVolume = creditTransactions
+          .filter(t => t.delta < 0 && t.messageId)
+          .reduce((sum, t) => sum + Math.abs(t.delta), 0);
 
           let planName = "Trial";
           let monthlyPayment = 0;
@@ -1793,7 +1913,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Get monthly payment based on subscription currency
             if (plan) {
-              const currency = subscription.currency || user.currency || "GBP";
+              const currency = subscription.currency || "GBP";
               if (currency === "GBP") {
                 monthlyPayment = plan.priceGBP / 100; // Convert from pence to pounds
               } else if (currency === "USD") {
@@ -2090,6 +2210,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
   return httpServer;
+}
+
+async function sendAcknowledgementSMS(contact: any, job: any, parsed: any, userId: string) {
+  try {
+    let twilioClient: any = null;
+    let fromNumber: string = "";
+    
+    try {
+      twilioClient = await getTwilioClient();
+      fromNumber = await getTwilioFromPhoneNumber();
+    } catch (error) {
+      console.log("Twilio not configured, acknowledgement will be logged only");
+      return;
+    }
+
+    // Generate acknowledgement message based on response type
+    let message = "";
+    const jobDate = new Date(job.startTime).toLocaleDateString('en-GB', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    const jobTime = new Date(job.startTime).toLocaleTimeString('en-GB', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+
+    if (parsed.status === "confirmed") {
+      if (parsed.shiftPreference) {
+        message = `Thanks ${contact.firstName}! You're confirmed for ${job.name} (${parsed.shiftPreference}) on ${jobDate} at ${jobTime}. Location: ${job.location}. See you there!`;
+      } else {
+        message = `Thanks ${contact.firstName}! You're confirmed for ${job.name} on ${jobDate} at ${jobTime}. Location: ${job.location}. See you there!`;
+      }
+    } else if (parsed.status === "declined") {
+      message = `Thanks for letting us know, ${contact.firstName}. We've noted you're unavailable for ${job.name} on ${jobDate}. We'll contact you about future opportunities.`;
+    } else if (parsed.status === "maybe") {
+      message = `Thanks ${contact.firstName}. We've noted your tentative availability for ${job.name} on ${jobDate}. We'll confirm closer to the date.`;
+    }
+
+    if (!message) return;
+
+    if (twilioClient && fromNumber) {
+      try {
+        const e164Phone = constructE164Phone(contact.countryCode || "GB", contact.phone);
+        const twilioMessage = await twilioClient.messages.create({
+          body: message,
+          from: fromNumber,
+          to: e164Phone,
+        });
+
+        await storage.createMessage(userId, {
+          contactId: contact.id,
+          jobId: job.id,
+          campaignId: null,
+          direction: "outbound",
+          content: message,
+          status: "sent",
+          twilioSid: twilioMessage.sid,
+        });
+
+        // Consume 1 credit for acknowledgement
+        await creditService.consumeCredits(
+          userId,
+          1,
+          `Acknowledgement SMS for job ${job.id}`,
+          null
+        );
+
+        console.log(`Sent acknowledgement SMS to ${contact.firstName} ${contact.lastName} for ${job.name}`);
+      } catch (error) {
+        console.error("Failed to send acknowledgement SMS:", error);
+      }
+    } else {
+      console.log(`[DEV MODE] Would send acknowledgement SMS to ${contact.phone}: ${message}`);
+    }
+  } catch (error) {
+    console.error("Acknowledgement SMS error:", error);
+  }
 }
 
 async function sendRescheduleNotifications(userId: string, job: any, contacts: any[]) {

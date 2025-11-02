@@ -56,6 +56,48 @@ export default function Billing() {
   const [currency, setCurrency] = useState<Currency>("GBP");
   const [bundlesDialogOpen, setBundlesDialogOpen] = useState(false);
 
+  // Handle successful checkout callback from Stripe
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    
+    if (sessionId) {
+      // Process the checkout session on the backend
+      const processCheckout = async () => {
+        try {
+          const response = await apiRequest("POST", "/api/stripe/process-session", { sessionId });
+          const result = await response.json();
+          console.log(response);
+          
+          // Show success message
+          toast({
+            title: "Subscription Activated!",
+            description: `${result.creditsGranted || 0} credits have been added to your account.`,
+          });
+          
+          // Invalidate queries to refetch subscription data
+          queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/credits"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+        } catch (error: any) {
+          toast({
+            title: "Subscription Activated",
+            description: "Your subscription is active. Credits are being processed.",
+          });
+          
+          // Still invalidate queries even if processing fails
+          queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/credits"] });
+        }
+      };
+      
+      processCheckout();
+      
+      // Clean up URL by removing session_id
+      window.history.replaceState({}, '', '/billing');
+    }
+  }, [toast]);
+
   const { data: user } = useQuery<User>({
     queryKey: ["/api/auth/me"],
   });
@@ -263,12 +305,21 @@ export default function Billing() {
                   </div>
                   <Button
                     className="w-full"
-                    variant={isCurrent ? "outline" : "default"}
+                    variant={isCurrent ? "default" : "outline"}
                     disabled={isCurrent || checkoutMutation.isPending}
                     onClick={() => handleSelectPlan(plan.id)}
                     data-testid={`button-select-${plan.name.toLowerCase()}`}
                   >
-                    {checkoutMutation.isPending ? "Loading..." : isCurrent ? "Current Plan" : "Select Plan"}
+                    {isCurrent ? (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        Active
+                      </>
+                    ) : checkoutMutation.isPending ? (
+                      "Loading..."
+                    ) : (
+                      "Select Plan"
+                    )}
                   </Button>
                 </CardContent>
               </Card>

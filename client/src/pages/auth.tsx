@@ -66,7 +66,7 @@ export default function AuthPage() {
     defaultValues: {
       username: "",
       email: "",
-      countryCode: "US",
+      countryCode: "GB",
       mobileNumber: "",
       password: "",
       confirmPassword: "",

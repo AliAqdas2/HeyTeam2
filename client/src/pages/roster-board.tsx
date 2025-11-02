@@ -118,6 +118,7 @@ export default function RosterBoard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/jobs", params?.id, "roster"] });
       queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] }); // Update contacts list
       toast({
         title: "Status Updated",
         description: "Contact availability status has been updated",

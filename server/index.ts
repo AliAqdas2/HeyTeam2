@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -20,10 +21,10 @@ app.use(
       checkPeriod: 86400000, // 24 hours
     }),
     cookie: {
-      secure: process.env.COOKIE_SECURE === "true", // Only enable secure cookies when explicitly set (for HTTPS)
+      secure: false, // Allow cookies over HTTP
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      sameSite: "lax", // Helps with CSRF protection while allowing normal navigation
+      sameSite: "lax",
     },
   })
 );
@@ -83,11 +84,7 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  server.listen({ port }, () => {
     log(`serving on port ${port}`);
   });
 })();
