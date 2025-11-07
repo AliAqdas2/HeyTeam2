@@ -1,8 +1,9 @@
 import { Link, useLocation } from "wouter";
 import { ThemeToggle } from "./theme-toggle";
+import { FeedbackDialog } from "./feedback-dialog";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { Users, Calendar, FileText, Briefcase, CreditCard, LogOut, Shield, Settings, Menu, MessageSquare, ChevronDown, User } from "lucide-react";
+import { Users, Calendar, FileText, Briefcase, CreditCard, LogOut, Shield, Settings, Menu, MessageSquare, ChevronDown, User, MessageSquarePlus } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -154,47 +155,49 @@ export function AppHeader() {
                     );
                   })}
                   
-                  <div className="border-t my-2" />
-                  
-                  {/* Setup Menu */}
-                  <div className="text-xs font-medium text-muted-foreground px-2 py-1">Setup</div>
-                  {(user?.teamRole === "admin" || user?.teamRole === "owner") && (
-                    <Link href="/team">
-                      <Button 
-                        variant="ghost" 
-                        className="w-full justify-start gap-3"
-                        onClick={() => setMobileMenuOpen(false)}
-                        data-testid="link-mobile-team"
-                      >
-                        <Settings className="h-4 w-4" />
-                        Team
-                      </Button>
-                    </Link>
+                  {(user?.isAdmin || user?.teamRole === "admin" || user?.teamRole === "owner") && (
+                    <>
+                      <div className="border-t my-2" />
+                      
+                      {/* Setup Menu */}
+                      <div className="text-xs font-medium text-muted-foreground px-2 py-1">Setup</div>
+                      <Link href="/team">
+                        <Button 
+                          variant="ghost" 
+                          className="w-full justify-start gap-3"
+                          onClick={() => setMobileMenuOpen(false)}
+                          data-testid="link-mobile-team"
+                        >
+                          <Settings className="h-4 w-4" />
+                          Team
+                        </Button>
+                      </Link>
+                      <Link href="/messages">
+                        <Button 
+                          variant="ghost" 
+                          className="w-full justify-start gap-3"
+                          onClick={() => setMobileMenuOpen(false)}
+                          data-testid="link-mobile-messages"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                          Messages
+                        </Button>
+                      </Link>
+                      <Link href="/billing">
+                        <Button 
+                          variant="ghost" 
+                          className="w-full justify-start gap-3"
+                          onClick={() => setMobileMenuOpen(false)}
+                          data-testid="link-mobile-billing"
+                        >
+                          <CreditCard className="h-4 w-4" />
+                          Billing
+                        </Button>
+                      </Link>
+                      
+                      <div className="border-t my-2" />
+                    </>
                   )}
-                  <Link href="/messages">
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start gap-3"
-                      onClick={() => setMobileMenuOpen(false)}
-                      data-testid="link-mobile-messages"
-                    >
-                      <MessageSquare className="h-4 w-4" />
-                      Messages
-                    </Button>
-                  </Link>
-                  <Link href="/billing">
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start gap-3"
-                      onClick={() => setMobileMenuOpen(false)}
-                      data-testid="link-mobile-billing"
-                    >
-                      <CreditCard className="h-4 w-4" />
-                      Billing
-                    </Button>
-                  </Link>
-                  
-                  <div className="border-t my-2" />
                   
                   {/* User Menu */}
                   <div className="text-xs font-medium text-muted-foreground px-2 py-1">Account</div>
@@ -209,6 +212,16 @@ export function AppHeader() {
                       Edit Profile
                     </Button>
                   </Link>
+                  <FeedbackDialog trigger={
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3"
+                      data-testid="button-mobile-feedback"
+                    >
+                      <MessageSquarePlus className="h-4 w-4" />
+                      Send Feedback
+                    </Button>
+                  } />
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-3"
@@ -228,40 +241,40 @@ export function AppHeader() {
             
             {/* Desktop navigation - hidden on mobile */}
             <div className="hidden md:flex items-center gap-2">
-              {/* Setup Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2" data-testid="button-setup-menu">
-                    <Settings className="h-4 w-4" />
-                    <span className="hidden lg:inline">Setup</span>
-                    <ChevronDown className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Setup</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {(user?.teamRole === "admin" || user?.teamRole === "owner") && (
+              {/* Setup Dropdown - Only for Admin and Owners */}
+              {(user?.isAdmin || user?.teamRole === "admin" || user?.teamRole === "owner") && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2" data-testid="button-setup-menu">
+                      <Settings className="h-4 w-4" />
+                      <span className="hidden lg:inline">Setup</span>
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuLabel>Setup</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
                       <Link href="/team" className="cursor-pointer">
                         <Settings className="h-4 w-4 mr-2" />
                         Team
                       </Link>
                     </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem asChild>
-                    <Link href="/messages" className="cursor-pointer" data-testid="link-messages">
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Messages
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/billing" className="cursor-pointer">
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Billing
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <DropdownMenuItem asChild>
+                      <Link href="/messages" className="cursor-pointer" data-testid="link-messages">
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Messages
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/billing" className="cursor-pointer">
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Billing
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
 
               {/* User Profile Dropdown */}
               <DropdownMenu>
@@ -287,6 +300,15 @@ export function AppHeader() {
                       <User className="h-4 w-4 mr-2" />
                       Edit Profile
                     </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <FeedbackDialog trigger={
+                      <button className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50">
+                        <MessageSquarePlus className="h-4 w-4 mr-2" />
+                        Send Feedback
+                      </button>
+                    } />
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 

@@ -1,14 +1,11 @@
 import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
-const { Pool } = pkg;
 import { subscriptionPlans, smsBundles } from "@shared/schema";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL environment variable is required");
-}
+const { Pool } = pkg;
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
 const db = drizzle(pool);
 
 async function seedPlans() {
@@ -30,7 +27,6 @@ async function seedPlans() {
       priceUSD: 3700, // $37.00
       priceEUR: 3400, // €34.00
       monthlyCredits: 500,
-      calendarIntegrations: 1,
       supportLevel: "email",
       customTemplates: false,
       autoFollowUp: false,
@@ -48,7 +44,6 @@ async function seedPlans() {
       priceUSD: 10000, // $100.00
       priceEUR: 9200, // €92.00
       monthlyCredits: 3000,
-      calendarIntegrations: 5,
       supportLevel: "priority",
       customTemplates: true,
       autoFollowUp: true,
@@ -66,7 +61,6 @@ async function seedPlans() {
       priceUSD: 25200, // $252.00
       priceEUR: 23200, // €232.00
       monthlyCredits: 10000,
-      calendarIntegrations: 99,
       supportLevel: "dedicated",
       customTemplates: true,
       autoFollowUp: true,

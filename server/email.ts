@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Resend } from 'resend';
 
 // HTML escape utility to prevent injection attacks
@@ -81,6 +82,94 @@ export async function sendPasswordResetEmail(to: string, resetToken: string, res
   }
 }
 
+export async function sendTeamInvitationEmail(
+  to: string,
+  firstName: string,
+  temporaryPassword: string,
+  organizationName: string,
+  invitedByName: string,
+  loginUrl: string
+) {
+  try {
+    const { client, fromEmail } = getResendClient();
+    
+    const escapedFirstName = escapeHtml(firstName);
+    const escapedOrgName = escapeHtml(organizationName);
+    const escapedInvitedBy = escapeHtml(invitedByName);
+    
+    await client.emails.send({
+      from: fromEmail,
+      to,
+      subject: `You've been invited to join ${escapedOrgName} on HeyTeam`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #2563eb; color: white; padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0; }
+              .content { background: #f9fafb; padding: 30px 20px; border-radius: 0 0 8px 8px; }
+              .button { display: inline-block; background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+              .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
+              .credentials { background: white; border: 2px solid #2563eb; padding: 20px; border-radius: 6px; margin: 20px 0; }
+              .credential-row { margin: 10px 0; }
+              .credential-label { font-weight: 600; color: #6b7280; }
+              .credential-value { font-family: monospace; background: #e5e7eb; padding: 8px 12px; border-radius: 4px; display: inline-block; margin-top: 5px; }
+              .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 6px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0;">Welcome to HeyTeam!</h1>
+              </div>
+              <div class="content">
+                <p>Hi ${escapedFirstName},</p>
+                <p><strong>${escapedInvitedBy}</strong> has invited you to join <strong>${escapedOrgName}</strong> on HeyTeam.</p>
+                <p>HeyTeam is a workforce coordination platform that helps teams manage jobs, schedules, and communication.</p>
+                
+                <div class="credentials">
+                  <h3 style="margin-top: 0;">Your Login Credentials</h3>
+                  <div class="credential-row">
+                    <div class="credential-label">Email:</div>
+                    <div class="credential-value">${to}</div>
+                  </div>
+                  <div class="credential-row">
+                    <div class="credential-label">Temporary Password:</div>
+                    <div class="credential-value">${temporaryPassword}</div>
+                  </div>
+                </div>
+                
+                <div class="warning">
+                  <strong>⚠️ Important:</strong> Please change your password after your first login for security.
+                </div>
+                
+                <div style="text-align: center;">
+                  <a href="${loginUrl}" class="button">Log In to HeyTeam</a>
+                </div>
+                
+                <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+                  If you have any questions, please contact your team administrator.
+                </p>
+              </div>
+              <div class="footer">
+                <p>© ${new Date().getFullYear()} HeyTeam. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    console.log(`Team invitation email sent to ${to}`);
+  } catch (error) {
+    console.error('Failed to send team invitation email:', error);
+    throw error;
+  }
+}
+
 export async function sendTeamMessageNotification(
   to: string,
   fromUserName: string,
@@ -141,6 +230,68 @@ export async function sendTeamMessageNotification(
     console.log(`Team message notification email sent to ${to}`);
   } catch (error) {
     console.error('Failed to send team message notification email:', error);
+    throw error;
+  }
+}
+
+export async function sendCancellationNotification(userInfo: any, reason: string) {
+  try {
+    const { client, fromEmail } = getResendClient();
+    
+    await client.emails.send({
+      from: fromEmail,
+      to: 'Nadeem.Mohammed@deffinity.com',
+      subject: `HeyTeam Subscription Cancellation - ${userInfo.username}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #dc2626; color: white; padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0; }
+              .content { background: #f9fafb; padding: 30px 20px; border-radius: 0 0 8px 8px; }
+              .info-box { background: white; border: 1px solid #e5e7eb; padding: 20px; margin: 20px 0; border-radius: 6px; }
+              .reason-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 20px 0; border-radius: 6px; }
+              .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
+              .label { font-weight: bold; color: #374151; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0;">🚨 Subscription Cancellation Alert</h1>
+              </div>
+              <div class="content">
+                <p>A HeyTeam subscription has been canceled. Here are the details:</p>
+                
+                <div class="info-box">
+                  <p><span class="label">User:</span> ${escapeHtml(userInfo.username)} (${escapeHtml(userInfo.firstName || '')} ${escapeHtml(userInfo.lastName || '')})</p>
+                  <p><span class="label">Email:</span> ${escapeHtml(userInfo.email)}</p>
+                  <p><span class="label">User ID:</span> ${escapeHtml(userInfo.id)}</p>
+                  <p><span class="label">Cancellation Date:</span> ${new Date().toLocaleString()}</p>
+                </div>
+                
+                <div class="reason-box">
+                  <p><span class="label">Cancellation Reason:</span></p>
+                  <p>${escapeHtml(reason)}</p>
+                </div>
+                
+                <p>This cancellation has been automatically logged as feedback in the system for review.</p>
+              </div>
+              <div class="footer">
+                <p>© ${new Date().getFullYear()} HeyTeam. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+    
+    console.log(`Cancellation notification sent to Nadeem.Mohammed@deffinity.com`);
+  } catch (error) {
+    console.error('Failed to send cancellation notification:', error);
     throw error;
   }
 }

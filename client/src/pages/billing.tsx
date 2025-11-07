@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import type { Subscription, User } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { CancellationReasonDialog } from "@/components/cancellation-reason-dialog";
 
 type Currency = "GBP" | "USD" | "EUR";
 
@@ -55,48 +56,7 @@ export default function Billing() {
   const { toast } = useToast();
   const [currency, setCurrency] = useState<Currency>("GBP");
   const [bundlesDialogOpen, setBundlesDialogOpen] = useState(false);
-
-  // Handle successful checkout callback from Stripe
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('session_id');
-    
-    if (sessionId) {
-      // Process the checkout session on the backend
-      const processCheckout = async () => {
-        try {
-          const response = await apiRequest("POST", "/api/stripe/process-session", { sessionId });
-          const result = await response.json();
-          console.log(response);
-          
-          // Show success message
-          toast({
-            title: "Subscription Activated!",
-            description: `${result.creditsGranted || 0} credits have been added to your account.`,
-          });
-          
-          // Invalidate queries to refetch subscription data
-          queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/credits"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-        } catch (error: any) {
-          toast({
-            title: "Subscription Activated",
-            description: "Your subscription is active. Credits are being processed.",
-          });
-          
-          // Still invalidate queries even if processing fails
-          queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/credits"] });
-        }
-      };
-      
-      processCheckout();
-      
-      // Clean up URL by removing session_id
-      window.history.replaceState({}, '', '/billing');
-    }
-  }, [toast]);
+  const [cancellationDialogOpen, setCancellationDialogOpen] = useState(false);
 
   const { data: user } = useQuery<User>({
     queryKey: ["/api/auth/me"],
@@ -136,6 +96,45 @@ export default function Billing() {
     },
   });
 
+  const bundleCheckoutMutation = useMutation({
+    mutationFn: async ({ bundleId, currency }: { bundleId: string; currency: Currency }) => {
+      const response = await apiRequest("POST", "/api/create-bundle-checkout-session", { bundleId, currency });
+      return response.json();
+    },
+    onSuccess: (data: { url: string }) => {
+      window.location.href = data.url;
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create checkout session",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const manageStripeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/stripe/create-portal-session", {});
+      return response.json();
+    },
+    onSuccess: (data: { url: string }) => {
+      window.location.href = data.url;
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to open Stripe portal",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCancellationComplete = () => {
+    // This will be called after successful cancellation from the dialog
+    setCancellationDialogOpen(false);
+  };
+
   const getPrice = (plan: SubscriptionPlan) => {
     switch (currency) {
       case "USD":
@@ -150,7 +149,7 @@ export default function Billing() {
   const getPlanFeatures = (plan: SubscriptionPlan) => {
     const features = [
       `${plan.monthlyCredits.toLocaleString()} messages per month`,
-      `${plan.calendarIntegrations} calendar integration${plan.calendarIntegrations > 1 ? "s" : ""}`,
+    
       `${plan.supportLevel} support`,
     ];
 
@@ -173,6 +172,51 @@ export default function Billing() {
       setCurrency(user.currency as Currency);
     }
   }, [user?.currency]);
+
+  // Handle Stripe checkout session return
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    
+    if (sessionId) {
+      // Process the checkout session on the backend
+      const processCheckout = async () => {
+        try {
+          const response = await apiRequest("POST", "/api/stripe/process-session", { sessionId });
+          const result = await response.json();
+          
+          // Show success message based on purchase type
+          const isBundle = result.purchaseType === "bundle";
+          toast({
+            title: isBundle ? "SMS Bundle Purchased!" : "Subscription Activated!",
+            description: `${result.creditsGranted || 0} credits have been added to your account.`,
+          });
+          
+          // Invalidate queries to refetch subscription data
+          queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/credits"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+        } catch (error: any) {
+          console.error("Error processing checkout session:", error);
+          toast({
+            title: "Processing Payment",
+            description: error.message || "Your payment was successful. Credits are being processed.",
+            variant: "default",
+          });
+          
+          // Still invalidate queries even if processing fails
+          queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/credits"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+        }
+      };
+      
+      processCheckout();
+      
+      // Clean up URL by removing session_id
+      window.history.replaceState({}, '', '/billing');
+    }
+  }, [toast]);
 
   if (isLoadingSubscription || isLoadingPlans) {
     return (
@@ -221,10 +265,25 @@ export default function Billing() {
                   </p>
                 )}
               </div>
-              <Button variant="outline" data-testid="button-manage-stripe">
-                <CreditCard className="h-4 w-4 mr-2" />
-                Manage in Stripe
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  data-testid="button-manage-stripe"
+                  onClick={() => manageStripeMutation.mutate()}
+                  disabled={manageStripeMutation.isPending}
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  {manageStripeMutation.isPending ? "Loading..." : "Manage in Stripe"}
+                </Button>
+                {subscription.status === "active" && (
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => setCancellationDialogOpen(true)}
+                  >
+                    Cancel Subscription
+                  </Button>
+                )}
+              </div>
             </div>
 
             {credits && (
@@ -328,22 +387,47 @@ export default function Billing() {
         </div>
       </div>
 
-      <Card>
+      <Card data-testid="card-credits-panel">
         <CardHeader>
-          <h3 className="text-lg font-semibold">Need More Credits?</h3>
+          <h3 className="text-lg font-semibold">SMS Credits</h3>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground mb-4">
-            Running low on SMS credits? Purchase additional SMS bundles at discounted rates or upgrade your plan for more monthly credits.
-          </p>
-          <Button 
-            variant="outline" 
-            onClick={() => setBundlesDialogOpen(true)}
-            data-testid="button-view-bundles"
-          >
-            <Package className="h-4 w-4 mr-2" />
-            View SMS Bundles
-          </Button>
+        <CardContent className="space-y-6">
+          {credits && (
+            <div className="flex items-center justify-between p-6 bg-muted/50 rounded-lg border">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-1">Available Credits</p>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-bold" data-testid="text-available-credits">
+                    {credits.available.toLocaleString()}
+                  </span>
+                  <span className="text-lg text-muted-foreground">SMS</span>
+                </div>
+                {currentPlan && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    of {currentPlan.monthlyCredits.toLocaleString()} monthly credits
+                  </p>
+                )}
+              </div>
+              <div className="text-right">
+                <Zap className="w-12 h-12 text-primary/20" />
+              </div>
+            </div>
+          )}
+          
+          <div>
+            <h4 className="font-semibold mb-2">Need More Credits?</h4>
+            <p className="text-sm text-muted-foreground mb-4">
+              Running low on SMS credits? Purchase additional SMS bundles at discounted rates or upgrade your plan for more monthly credits.
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={() => setBundlesDialogOpen(true)}
+              data-testid="button-view-bundles"
+            >
+              <Package className="h-4 w-4 mr-2" />
+              View SMS Bundles
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -391,13 +475,15 @@ export default function Billing() {
                         </span>
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        ${((price / 100) / bundle.credits * 1000).toFixed(2)} per 1,000 messages
+                        {CURRENCY_SYMBOLS[currency]}{((price / 100) / bundle.credits * 1000).toFixed(2)} per 1,000 messages
                       </div>
                       <Button 
                         className="w-full"
+                        onClick={() => bundleCheckoutMutation.mutate({ bundleId: bundle.id, currency })}
+                        disabled={bundleCheckoutMutation.isPending}
                         data-testid={`button-purchase-bundle-${bundle.id}`}
                       >
-                        Purchase Bundle
+                        {bundleCheckoutMutation.isPending ? "Loading..." : "Purchase Bundle"}
                       </Button>
                     </CardContent>
                   </Card>
@@ -407,6 +493,12 @@ export default function Billing() {
           )}
         </DialogContent>
       </Dialog>
+
+      <CancellationReasonDialog
+        open={cancellationDialogOpen}
+        onOpenChange={setCancellationDialogOpen}
+        onConfirm={handleCancellationComplete}
+      />
     </div>
   );
 }

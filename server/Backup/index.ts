@@ -21,10 +21,10 @@ app.use(
       checkPeriod: 86400000, // 24 hours
     }),
     cookie: {
-      secure: false, // Allow cookies to work over HTTP
+      secure: false, // Allow cookies over HTTP
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      sameSite: "lax", // Allow cookies to be sent in cross-site requests
+      sameSite: "lax",
     },
   })
 );
@@ -79,8 +79,12 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
+  // ALWAYS serve the app on the port specified in the environment variable PORT
+  // Other ports are firewalled. Default to 5000 if not specified.
+  // this serves both the API and the client.
+  // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen(port, () => {
+  server.listen({ port }, () => {
     log(`serving on port ${port}`);
   });
 })();

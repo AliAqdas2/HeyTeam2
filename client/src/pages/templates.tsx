@@ -14,8 +14,14 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Plus, FileText, Trash2 } from "lucide-react";
+import { Plus, FileText, Trash2, Pencil, HelpCircle, Sparkles } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertTemplateSchema, type InsertTemplate, type Template } from "@shared/schema";
@@ -33,6 +39,7 @@ const availableTokens = [
   { token: "{FromTime}", description: "Job start time" },
   { token: "{ToTime}", description: "Job end time" },
   { token: "{Location}", description: "Job location" },
+  { token: "{Notes}", description: "Job notes" },
 ];
 
 export default function Templates() {
@@ -103,6 +110,7 @@ export default function Templates() {
 
 function TemplateCard({ template }: { template: Template }) {
   const { toast } = useToast();
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: () => apiRequest("DELETE", `/api/templates/${template.id}`),
@@ -116,39 +124,62 @@ function TemplateCard({ template }: { template: Template }) {
   });
 
   return (
-    <Card className="hover-elevate" data-testid={`card-template-${template.id}`}>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold text-lg" data-testid={`text-template-name-${template.id}`}>{template.name}</h3>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-destructive hover:text-destructive"
-            onClick={() => deleteMutation.mutate()}
-            data-testid={`button-delete-template-${template.id}`}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-        <Badge variant="secondary" className="w-fit text-xs">{template.type}</Badge>
-      </CardHeader>
-      <CardContent>
-        <div className="bg-muted/50 p-3 rounded-md">
-          <p className="text-sm whitespace-pre-wrap" data-testid={`text-template-content-${template.id}`}>
-            {template.content}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+    <>
+      <Card className="hover-elevate" data-testid={`card-template-${template.id}`}>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-semibold text-lg" data-testid={`text-template-name-${template.id}`}>{template.name}</h3>
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setIsEditDialogOpen(true)}
+                data-testid={`button-edit-template-${template.id}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-destructive hover:text-destructive"
+                onClick={() => deleteMutation.mutate()}
+                data-testid={`button-delete-template-${template.id}`}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <Badge variant="secondary" className="w-fit text-xs">{template.type}</Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-muted/50 p-3 rounded-md">
+            <p className="text-sm whitespace-pre-wrap" data-testid={`text-template-content-${template.id}`}>
+              {template.content}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <TemplateForm 
+            template={template}
+            onSuccess={() => setIsEditDialogOpen(false)} 
+          />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
-function TemplateForm({ onSuccess }: { onSuccess: () => void }) {
+function TemplateForm({ template, onSuccess }: { template?: Template; onSuccess: () => void }) {
   const { toast } = useToast();
+  const isEdit = !!template;
 
   const form = useForm<InsertTemplate>({
     resolver: zodResolver(insertTemplateSchema),
-    defaultValues: {
+    defaultValues: template || {
       name: "",
       content: "",
       type: "standard",
@@ -176,24 +207,71 @@ function TemplateForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: (data: InsertTemplate) => apiRequest("PATCH", `/api/templates/${template?.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      toast({
+        title: "Template Updated",
+        description: "Template has been updated successfully",
+      });
+      onSuccess();
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update template",
+        variant: "destructive",
+      });
+    },
+  });
+
   const insertToken = (token: string) => {
     const currentContent = form.getValues("content");
     form.setValue("content", currentContent + token);
   };
 
+  const handleSubmit = (data: InsertTemplate) => {
+    if (isEdit) {
+      updateMutation.mutate(data);
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
   return (
-    <>
+    <TooltipProvider>
       <DialogHeader>
-        <DialogTitle>Create Message Template</DialogTitle>
+        <DialogTitle className="flex items-center gap-2">
+          {isEdit ? "Edit Message Template" : "Create Message Template"}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Sparkles className="h-4 w-4 text-primary cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <p>Templates help you send consistent, personalized messages quickly. Use tokens to auto-fill recipient details!</p>
+            </TooltipContent>
+          </Tooltip>
+        </DialogTitle>
       </DialogHeader>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit((data) => createMutation.mutate(data))} className="space-y-4">
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
           <FormField
             control={form.control}
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Template Name</FormLabel>
+                <FormLabel className="flex items-center gap-2">
+                  Template Name
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p>Give your template a descriptive name like "Job Invitation" or "Availability Request" so you can easily find it later</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </FormLabel>
                 <FormControl>
                   <Input placeholder="e.g., Job Invitation" {...field} data-testid="input-template-name" />
                 </FormControl>
@@ -207,7 +285,18 @@ function TemplateForm({ onSuccess }: { onSuccess: () => void }) {
             name="content"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Message Content</FormLabel>
+                <FormLabel className="flex items-center gap-2">
+                  Message Content
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-medium mb-1">Pro tip: Click token buttons to insert them</p>
+                      <p className="text-xs">Tokens like {"{FirstName}"} will automatically be replaced with actual data when you send the message!</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </FormLabel>
                 <FormControl>
                   <Textarea
                     placeholder="Hi {FirstName}, we have a new job at {Location} on {Date}. Reply Y to confirm or N to decline."
@@ -216,8 +305,9 @@ function TemplateForm({ onSuccess }: { onSuccess: () => void }) {
                     data-testid="input-template-content"
                   />
                 </FormControl>
-                <FormDescription>
-                  Use the tokens below to personalize your message
+                <FormDescription className="flex items-start gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                  <span>Click token buttons below to insert them at the cursor position. Tokens will be replaced with real data when sending.</span>
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -230,9 +320,20 @@ function TemplateForm({ onSuccess }: { onSuccess: () => void }) {
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                 <div className="space-y-0.5">
-                  <FormLabel className="text-base">Include Roster Link</FormLabel>
+                  <FormLabel className="text-base flex items-center gap-2">
+                    Include Roster Link
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="font-medium mb-1">What's a roster link?</p>
+                        <p className="text-xs">A secure URL that shows the recipient their upcoming jobs for the week. Great for reminders and confirmations!</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </FormLabel>
                   <FormDescription>
-                    Add a link to the recipient's weekly job roster in the message
+                    Automatically add a personalized roster link to show the recipient's weekly schedule
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -247,34 +348,61 @@ function TemplateForm({ onSuccess }: { onSuccess: () => void }) {
           />
 
           <div>
-            <label className="text-sm font-medium mb-2 block">Available Tokens</label>
+            <label className="text-sm font-medium mb-2 flex items-center gap-2">
+              Available Tokens
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-sm">
+                  <p className="font-medium mb-2">Token Magic ✨</p>
+                  <p className="text-xs mb-2">Click any token to insert it into your message. When you send, they'll be replaced with:</p>
+                  <ul className="text-xs space-y-1">
+                    <li>• {"{FirstName}"} → John</li>
+                    <li>• {"{Location}"} → Central Office</li>
+                    <li>• {"{Date}"} → 15/11/2025</li>
+                    <li>• {"{Time}"} → 09:00</li>
+                  </ul>
+                </TooltipContent>
+              </Tooltip>
+            </label>
             <div className="flex flex-wrap gap-2">
               {availableTokens.map(({ token, description }) => (
-                <Button
-                  key={token}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => insertToken(token)}
-                  className="text-xs"
-                  data-testid={`button-insert-${token}`}
-                >
-                  {token}
-                </Button>
+                <Tooltip key={token}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => insertToken(token)}
+                      className="text-xs"
+                      data-testid={`button-insert-${token}`}
+                    >
+                      {token}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">{description}</p>
+                  </TooltipContent>
+                </Tooltip>
               ))}
             </div>
           </div>
 
           <DialogFooter>
-            <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-template">
-              {createMutation.isPending && (
+            <Button 
+              type="submit" 
+              disabled={createMutation.isPending || updateMutation.isPending} 
+              data-testid="button-submit-template"
+            >
+              {(createMutation.isPending || updateMutation.isPending) && (
                 <div className="animate-spin w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full mr-2" />
               )}
-              Create Template
+              {isEdit ? "Update Template" : "Create Template"}
             </Button>
           </DialogFooter>
         </form>
       </Form>
-    </>
+    </TooltipProvider>
   );
 }

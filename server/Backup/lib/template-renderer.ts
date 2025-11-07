@@ -12,6 +12,5 @@ export function renderTemplate(template: string, contact: Contact, job: Job): st
     .replace(/{ToDate}/g, format(new Date(job.endTime), "MMMM d, yyyy"))
     .replace(/{FromTime}/g, format(new Date(job.startTime), "h:mm a"))
     .replace(/{ToTime}/g, format(new Date(job.endTime), "h:mm a"))
-    .replace(/{Location}/g, job.location)
-    .replace(/{Notes}/g, job.notes || "");
+    .replace(/{Location}/g, job.location);
 }

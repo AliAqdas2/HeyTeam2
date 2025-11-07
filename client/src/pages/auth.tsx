@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,6 +14,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { COUNTRIES } from "@/lib/constants";
 import illustrationImage from "@assets/HeyTeam Login Page Animation_1761223879122.gif";
 import logoImage from "@assets/heyteam 1_1760877824955.png";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const LAST_EMAIL_KEY = "heyteam_last_email";
 
@@ -50,8 +51,19 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
 
   const lastEmail = typeof window !== "undefined" ? localStorage.getItem(LAST_EMAIL_KEY) || "" : "";
+
+  // Read referral code from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref") || params.get("referralCode");
+    if (ref) {
+      setReferralCode(ref);
+      setActiveTab("register"); // Auto-switch to register tab
+    }
+  }, []);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -103,7 +115,11 @@ export default function AuthPage() {
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterFormData) => {
-      return await apiRequest("POST", "/api/auth/register", data);
+      // Include referralCode if present
+      const payload = referralCode 
+        ? { ...data, referralCode }
+        : data;
+      return await apiRequest("POST", "/api/auth/register", payload);
     },
     onSuccess: () => {
       toast({ title: "Registration successful" });
@@ -297,8 +313,8 @@ export default function AuthPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Password</FormLabel>
-                          <FormControl>
-                            <div className="relative">
+                          <div className="relative">
+                            <FormControl>
                               <Input
                                 {...field}
                                 type={showPassword ? "text" : "password"}
@@ -306,23 +322,21 @@ export default function AuthPage() {
                                 className="h-11 pr-10"
                                 data-testid="input-login-password"
                               />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                                onClick={() => setShowPassword(!showPassword)}
-                                aria-label="Toggle password visibility"
-                                data-testid="button-toggle-password"
-                              >
-                                {showPassword ? (
-                                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                                ) : (
-                                  <Eye className="h-4 w-4 text-muted-foreground" />
-                                )}
-                              </Button>
-                            </div>
-                          </FormControl>
+                            </FormControl>
+                            <button
+                              type="button"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground hover:text-foreground focus:outline-none"
+                              onClick={() => setShowPassword(!showPassword)}
+                              aria-label="Toggle password visibility"
+                              data-testid="button-toggle-password"
+                            >
+                              {showPassword ? (
+                                <EyeOff className="h-5 w-5" />
+                              ) : (
+                                <Eye className="h-5 w-5" />
+                              )}
+                            </button>
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -331,7 +345,7 @@ export default function AuthPage() {
                     <div className="flex items-center justify-end">
                       <Button
                         type="button"
-                        variant="link"
+                        variant="ghost"
                         onClick={() => setShowForgotPassword(true)}
                         className="text-sm h-auto p-0 text-primary"
                         data-testid="button-forgot-password"
@@ -355,7 +369,7 @@ export default function AuthPage() {
                   <span className="text-muted-foreground">Don't have an account? </span>
                   <Button
                     type="button"
-                    variant="link"
+                    variant="ghost"
                     onClick={() => setActiveTab("register")}
                     className="h-auto p-0 text-primary font-semibold"
                     data-testid="link-to-register"
@@ -373,6 +387,14 @@ export default function AuthPage() {
                   <h2 className="text-3xl font-bold" data-testid="heading-register">Sign up</h2>
                   <p className="text-muted-foreground">Create your account to get started</p>
                 </div>
+
+                {referralCode && (
+                  <Alert className="bg-primary/10 border-primary/20" data-testid="alert-referral">
+                    <AlertDescription className="text-sm">
+                      ✨ You're signing up with a partner referral code
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 <Form {...registerForm}>
                   <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-5">
@@ -468,8 +490,8 @@ export default function AuthPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Password</FormLabel>
-                          <FormControl>
-                            <div className="relative">
+                          <div className="relative">
+                            <FormControl>
                               <Input
                                 {...field}
                                 type={showRegisterPassword ? "text" : "password"}
@@ -477,23 +499,21 @@ export default function AuthPage() {
                                 className="h-11 pr-10"
                                 data-testid="input-register-password"
                               />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                                onClick={() => setShowRegisterPassword(!showRegisterPassword)}
-                                aria-label="Toggle password visibility"
-                                data-testid="button-toggle-register-password"
-                              >
-                                {showRegisterPassword ? (
-                                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                                ) : (
-                                  <Eye className="h-4 w-4 text-muted-foreground" />
-                                )}
-                              </Button>
-                            </div>
-                          </FormControl>
+                            </FormControl>
+                            <button
+                              type="button"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground hover:text-foreground focus:outline-none"
+                              onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                              aria-label="Toggle password visibility"
+                              data-testid="button-toggle-register-password"
+                            >
+                              {showRegisterPassword ? (
+                                <EyeOff className="h-5 w-5" />
+                              ) : (
+                                <Eye className="h-5 w-5" />
+                              )}
+                            </button>
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -505,8 +525,8 @@ export default function AuthPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Confirm Password</FormLabel>
-                          <FormControl>
-                            <div className="relative">
+                          <div className="relative">
+                            <FormControl>
                               <Input
                                 {...field}
                                 type={showConfirmPassword ? "text" : "password"}
@@ -514,23 +534,21 @@ export default function AuthPage() {
                                 className="h-11 pr-10"
                                 data-testid="input-register-confirm"
                               />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                aria-label="Toggle password visibility"
-                                data-testid="button-toggle-confirm-password"
-                              >
-                                {showConfirmPassword ? (
-                                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                                ) : (
-                                  <Eye className="h-4 w-4 text-muted-foreground" />
-                                )}
-                              </Button>
-                            </div>
-                          </FormControl>
+                            </FormControl>
+                            <button
+                              type="button"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground hover:text-foreground focus:outline-none"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              aria-label="Toggle password visibility"
+                              data-testid="button-toggle-confirm-password"
+                            >
+                              {showConfirmPassword ? (
+                                <EyeOff className="h-5 w-5" />
+                              ) : (
+                                <Eye className="h-5 w-5" />
+                              )}
+                            </button>
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -557,7 +575,7 @@ export default function AuthPage() {
                   <span className="text-muted-foreground">Already a member? </span>
                   <Button
                     type="button"
-                    variant="link"
+                    variant="ghost"
                     onClick={() => setActiveTab("login")}
                     className="h-auto p-0 text-primary font-semibold"
                     data-testid="link-to-login"

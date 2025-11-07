@@ -14,47 +14,29 @@ const router = Router();
 // Register
 router.post("/register", async (req: Request, res: Response) => {
   try {
-    const { username, email, password, countryCode, mobileNumber, referralCode } = req.body;
-    
-    // Validate input
-    const { username: validUsername, email: validEmail, password: validPassword, countryCode: validCountryCode, mobileNumber: validMobileNumber } = insertUserSchema.parse({ username, email, password, countryCode, mobileNumber });
+    const { username, email, password, countryCode, mobileNumber } = insertUserSchema.parse(req.body);
 
     // Check if user already exists (username is now company name)
-    const existingUser = await storage.getUserByUsername(validUsername);
+    const existingUser = await storage.getUserByUsername(username);
     if (existingUser) {
       return res.status(400).json({ message: "Company name already exists" });
     }
 
-    const existingEmail = await storage.getUserByEmail(validEmail);
+    const existingEmail = await storage.getUserByEmail(email);
     if (existingEmail) {
       return res.status(400).json({ message: "Email already exists" });
     }
 
-    // Validate referral code if provided
-    let resellerId: string | null = null;
-    if (referralCode) {
-      const reseller = await storage.getResellerByReferralCode(referralCode);
-      if (!reseller) {
-        return res.status(400).json({ message: "Invalid referral code" });
-      }
-      if (reseller.status !== "active") {
-        return res.status(400).json({ message: "This referral code is no longer active" });
-      }
-      resellerId = reseller.id;
-      console.log(`New registration with referral code: ${referralCode} (reseller: ${reseller.name})`);
-    }
-
     // Hash password
-    const hashedPassword = await bcrypt.hash(validPassword, 10);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user with mobile number and reseller ID
+    // Create user with mobile number
     const user = await storage.createUser({
-      username: validUsername, // Company name
-      email: validEmail,
-      countryCode: validCountryCode,
-      mobileNumber: validMobileNumber,
+      username, // Company name
+      email,
+      countryCode,
+      mobileNumber,
       password: hashedPassword,
-      resellerId,
     });
 
     // Grant 10 trial SMS credits to new users (non-expiring)

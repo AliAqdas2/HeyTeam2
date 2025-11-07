@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Plus, Search, Phone, Mail, UserX, Upload, FileText, Pencil, X, Calendar, Award, Send, Filter, MapPin, MessageSquare, Crown, Shield, User as UserIcon, Trash2, CheckCircle, Briefcase, Clock, Download, Key, Copy } from "lucide-react";
+import { Plus, Search, Phone, Mail, UserX, Upload, FileText, Pencil, X, Calendar, Award, Send, Filter, MapPin, MessageSquare, Crown, Shield, User as UserIcon, Trash2, CheckCircle, Briefcase, Clock, Download, Key, Copy, Smartphone, AlertCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertContactSchema, type InsertContact, type Contact } from "@shared/schema";
@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { COUNTRIES } from "@/lib/constants";
+import { format } from "date-fns";
 
 export default function Contacts() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,6 +44,7 @@ export default function Contacts() {
   const [showFilters, setShowFilters] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isPhoneImportOpen, setIsPhoneImportOpen] = useState(false);
   const [isBulkSMSOpen, setIsBulkSMSOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [messageDialogOpen, setMessageDialogOpen] = useState(false);
@@ -188,6 +190,17 @@ export default function Contacts() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <ImportCSV onSuccess={() => setIsImportDialogOpen(false)} />
+            </DialogContent>
+          </Dialog>
+          <Dialog open={isPhoneImportOpen} onOpenChange={setIsPhoneImportOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2" data-testid="button-import-phone">
+                <Smartphone className="h-4 w-4" />
+                Import from Phone
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <ImportFromPhone onSuccess={() => setIsPhoneImportOpen(false)} />
             </DialogContent>
           </Dialog>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
@@ -1111,7 +1124,10 @@ function ContactForm({ contact, onSuccess }: { contact?: Contact | null; onSucce
   const addBlackoutPeriod = () => {
     if (blackoutStart && blackoutEnd) {
       const currentPeriods = form.getValues("blackoutPeriods") || [];
-      const periodStr = `${blackoutStart} to ${blackoutEnd}`;
+      // Format dates in UK format (DD/MM/YYYY)
+      const startFormatted = format(new Date(blackoutStart), "dd/MM/yyyy");
+      const endFormatted = format(new Date(blackoutEnd), "dd/MM/yyyy");
+      const periodStr = `${startFormatted} to ${endFormatted}`;
       form.setValue("blackoutPeriods", [...currentPeriods, periodStr]);
       setBlackoutStart("");
       setBlackoutEnd("");
@@ -1607,6 +1623,233 @@ Mike,Johnson,447700900789,`;
             <div className="animate-spin w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full mr-2" />
           )}
           Import Contacts
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+function ImportFromPhone({ onSuccess }: { onSuccess: () => void }) {
+  const [results, setResults] = useState<any>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const { toast } = useToast();
+
+  // Check if Contact Picker API is available
+  const isSupported = 'contacts' in navigator && 'ContactsManager' in window;
+
+  const parsePhoneNumber = (phoneNumber: string): string => {
+    // Remove all non-digit characters except +
+    let cleaned = phoneNumber.replace(/[^\d+]/g, '');
+    
+    // If it starts with 00, replace with +
+    if (cleaned.startsWith('00')) {
+      cleaned = '+' + cleaned.substring(2);
+    }
+    
+    // If it doesn't start with +, assume UK and add +44
+    if (!cleaned.startsWith('+')) {
+      // Remove leading 0 if present for UK numbers
+      if (cleaned.startsWith('0')) {
+        cleaned = cleaned.substring(1);
+      }
+      cleaned = '+44' + cleaned;
+    }
+    
+    // Fix common UK format: +44(0)... or +440... → +44...
+    // This handles numbers like "+44 (0)20 1234 5678" which become "+44020..." after cleaning
+    if (cleaned.startsWith('+440')) {
+      cleaned = '+44' + cleaned.substring(4);
+    }
+    
+    return cleaned;
+  };
+
+  const handleImport = async () => {
+    if (!isSupported) {
+      toast({
+        title: "Not Supported",
+        description: "Contact picker is not supported on this device",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsImporting(true);
+      setResults(null);
+
+      // Request contacts with name, email, and tel properties
+      const props = ['name', 'email', 'tel'];
+      const opts = { multiple: true };
+      
+      // @ts-ignore - Contact Picker API is not fully typed yet
+      const selectedContacts = await navigator.contacts.select(props, opts);
+      
+      if (!selectedContacts || selectedContacts.length === 0) {
+        toast({
+          title: "No Contacts Selected",
+          description: "Please select at least one contact to import",
+        });
+        setIsImporting(false);
+        return;
+      }
+
+      // Parse contacts into the format expected by backend
+      const parsedContacts = selectedContacts.flatMap((contact: any) => {
+        const phones = contact.tel || [];
+        const emails = contact.email || [];
+        const names = contact.name || [];
+        
+        // Get the first name (or use a default)
+        const fullName = names.length > 0 ? names[0] : 'Unknown';
+        const nameParts = fullName.split(' ');
+        const firstName = nameParts[0] || 'Unknown';
+        const lastName = nameParts.slice(1).join(' ') || 'Unknown';
+        
+        // Create a contact for each phone number
+        return phones.map((phone: string, index: number) => ({
+          firstName: firstName,
+          lastName: lastName + (phones.length > 1 ? ` (${index + 1})` : ''),
+          phone: parsePhoneNumber(phone),
+          email: emails.length > 0 ? emails[0] : undefined,
+          countryCode: 'GB',
+        }));
+      });
+
+      if (parsedContacts.length === 0) {
+        toast({
+          title: "No Valid Contacts",
+          description: "Selected contacts don't have phone numbers",
+          variant: "destructive",
+        });
+        setIsImporting(false);
+        return;
+      }
+
+      // Send to backend
+      const response = await apiRequest("POST", "/api/contacts/bulk", {
+        contacts: parsedContacts,
+      });
+
+      const data = await response.json();
+      setResults(data);
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      
+      toast({
+        title: "Import Complete",
+        description: `Imported ${data.imported} contacts, skipped ${data.skipped}`,
+      });
+
+      if (data.imported > 0 && data.errors.length === 0) {
+        setTimeout(onSuccess, 2000);
+      }
+    } catch (error: any) {
+      console.error('Import error:', error);
+      toast({
+        title: "Import Failed",
+        description: error.message || "Failed to import contacts from phone",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Import Contacts from Phone</DialogTitle>
+        <DialogDescription>
+          Import contacts directly from your phone's contact list
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4 py-4">
+        {!isSupported ? (
+          <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
+            <CardContent className="p-4">
+              <div className="flex gap-3">
+                <div className="text-yellow-600 dark:text-yellow-400">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                    Not Supported
+                  </h4>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                    The Contact Picker API is not supported on this device or browser. This feature works best on:
+                  </p>
+                  <ul className="text-sm text-yellow-700 dark:text-yellow-300 list-disc list-inside mt-2 space-y-1">
+                    <li>Chrome on Android (version 80+)</li>
+                    <li>Edge on Android (version 80+)</li>
+                  </ul>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-2">
+                    Please use the "Import CSV" option on desktop browsers or unsupported devices.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex gap-3">
+                  <div className="text-primary">
+                    <Smartphone className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium mb-1">How it works</h4>
+                    <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                      <li>Click "Select Contacts" below</li>
+                      <li>Choose contacts from your phone's contact list</li>
+                      <li>Contacts will be imported with their phone numbers</li>
+                      <li>Duplicate phone numbers will be skipped</li>
+                    </ol>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {results && (
+              <Card>
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Imported:</span>
+                    <span className="text-sm text-green-600">{results.imported}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Skipped (duplicates):</span>
+                    <span className="text-sm text-yellow-600">{results.skipped}</span>
+                  </div>
+                  {results.errors.length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-red-600 mb-2">Errors:</p>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {results.errors.map((error: string, index: number) => (
+                          <p key={index} className="text-xs text-red-600">
+                            {error}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+      <DialogFooter>
+        <Button
+          onClick={handleImport}
+          disabled={!isSupported || isImporting}
+          data-testid="button-select-phone-contacts"
+        >
+          {isImporting && (
+            <div className="animate-spin w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full mr-2" />
+          )}
+          <Smartphone className="h-4 w-4 mr-2" />
+          {isImporting ? "Importing..." : "Select Contacts"}
         </Button>
       </DialogFooter>
     </>

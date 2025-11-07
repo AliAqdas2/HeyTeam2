@@ -14,10 +14,6 @@ import {
   type CreditTransaction, type InsertCreditTransaction,
   type Organization, type InsertOrganization,
   type AdminUser, type InsertAdminUser,
-  type Reseller, type InsertReseller,
-  type ResellerTransaction, type InsertResellerTransaction,
-  type ResellerPayout, type InsertResellerPayout,
-  type Feedback, type InsertFeedback,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -56,7 +52,6 @@ export interface IStorage {
   getContactByRosterToken(token: string): Promise<Contact | undefined>;
   getContactByPhone(phone: string): Promise<Contact | undefined>;
   createContact(userId: string, contact: InsertContact): Promise<Contact>;
-  bulkCreateContacts(userId: string, contacts: InsertContact[]): Promise<Contact[]>;
   updateContact(id: string, updates: Partial<InsertContact>): Promise<Contact>;
   deleteContact(id: string): Promise<void>;
 
@@ -69,7 +64,6 @@ export interface IStorage {
   getTemplates(userId: string): Promise<Template[]>;
   getTemplate(id: string): Promise<Template | undefined>;
   createTemplate(userId: string, template: InsertTemplate): Promise<Template>;
-  updateTemplate(id: string, updates: Partial<InsertTemplate>): Promise<Template>;
   deleteTemplate(id: string): Promise<void>;
 
   createCampaign(userId: string, campaign: InsertCampaign): Promise<Campaign>;
@@ -128,30 +122,6 @@ export interface IStorage {
     transactionIds: string[],
     reason: string
   ): Promise<CreditTransaction[]>;
-  
-  // Reseller methods
-  getAllResellers(): Promise<Reseller[]>;
-  getReseller(id: string): Promise<Reseller | undefined>;
-  getResellerByReferralCode(code: string): Promise<Reseller | undefined>;
-  createReseller(reseller: InsertReseller): Promise<Reseller>;
-  updateReseller(id: string, updates: Partial<InsertReseller>): Promise<Reseller>;
-  deleteReseller(id: string): Promise<void>;
-  
-  // Reseller transaction methods
-  createResellerTransaction(transaction: InsertResellerTransaction): Promise<ResellerTransaction>;
-  getResellerTransactions(resellerId: string): Promise<ResellerTransaction[]>;
-  getResellerTransactionsByMonth(resellerId: string, month: number, year: number): Promise<ResellerTransaction[]>;
-  getResellerTransactionByStripeEventId(eventId: string): Promise<ResellerTransaction | undefined>;
-  
-  // Reseller payout methods
-  getResellerPayout(resellerId: string, month: number, year: number): Promise<ResellerPayout | undefined>;
-  getResellerPayouts(resellerId: string): Promise<ResellerPayout[]>;
-  createOrUpdateResellerPayout(payout: InsertResellerPayout): Promise<ResellerPayout>;
-
-  // Feedback methods
-  createFeedback(feedback: InsertFeedback): Promise<Feedback>;
-  getAllFeedback(): Promise<Feedback[]>;
-  updateFeedbackStatus(id: string, status: string): Promise<Feedback>;
 }
 
 export class MemStorage implements IStorage {
@@ -168,68 +138,9 @@ export class MemStorage implements IStorage {
   private smsBundles: Map<string, SmsBundle> = new Map();
   private creditGrants: Map<string, CreditGrant> = new Map();
   private creditTransactions: Map<string, CreditTransaction> = new Map();
-  private organizations: Map<string, Organization> = new Map();
-  private adminUsers: Map<string, AdminUser> = new Map();
-  private resellers: Map<string, Reseller> = new Map();
-  private resellerTransactions: Map<string, ResellerTransaction> = new Map();
-  private resellerPayouts: Map<string, ResellerPayout> = new Map();
-  private feedbacks: Map<string, Feedback> = new Map();
   
   // Simple mutex for atomic credit operations
   private creditLocks: Map<string, Promise<any>> = new Map();
-
-  // Organization methods
-  async getOrganization(id: string): Promise<Organization | undefined> {
-    return this.organizations.get(id);
-  }
-
-  async createOrganization(org: InsertOrganization): Promise<Organization> {
-    const id = randomUUID();
-    const now = new Date();
-    const organization: Organization = { ...org, id, createdAt: now, updatedAt: now };
-    this.organizations.set(id, organization);
-    return organization;
-  }
-
-  async updateOrganization(id: string, updates: Partial<InsertOrganization>): Promise<Organization> {
-    const org = this.organizations.get(id);
-    if (!org) throw new Error("Organization not found");
-    Object.assign(org, { ...updates, updatedAt: new Date() });
-    this.organizations.set(id, org);
-    return org;
-  }
-
-  async getUsersInOrganization(organizationId: string): Promise<User[]> {
-    return Array.from(this.users.values()).filter((u) => u.organizationId === organizationId);
-  }
-
-  async updateUserTeamRole(userId: string, teamRole: string): Promise<User> {
-    const user = this.users.get(userId);
-    if (!user) throw new Error("User not found");
-    user.teamRole = teamRole;
-    this.users.set(userId, user);
-    return user;
-  }
-
-  // Admin user methods
-  async getAllAdminUsers(): Promise<AdminUser[]> {
-    return Array.from(this.adminUsers.values());
-  }
-
-  async getAdminUserByEmail(email: string): Promise<AdminUser | undefined> {
-    return Array.from(this.adminUsers.values()).find((admin) => admin.email === email);
-  }
-
-  async createAdminUser(insertAdminUser: InsertAdminUser): Promise<AdminUser> {
-    const id = randomUUID();
-    const adminUser: AdminUser = { ...insertAdminUser, id, createdAt: new Date() };
-    this.adminUsers.set(id, adminUser);
-    return adminUser;
-  }
-
-  async deleteAdminUser(id: string): Promise<void> {
-    this.adminUsers.delete(id);
-  }
 
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
@@ -253,29 +164,7 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const now = new Date();
-    const user: User = {
-      id,
-      username: insertUser.username,
-      firstName: insertUser.firstName ?? null,
-      lastName: insertUser.lastName ?? null,
-      password: insertUser.password,
-      email: insertUser.email,
-      countryCode: insertUser.countryCode ?? null,
-      mobileNumber: insertUser.mobileNumber ?? null,
-      emailVerified: false,
-      mobileVerified: false,
-      currency: "GBP",
-      organizationId: null,
-      teamRole: "member",
-      isAdmin: false,
-      isActive: true,
-      stripeCustomerId: null,
-      stripeSubscriptionId: null,
-      resellerId: null,
-      referralCode: null,
-      createdAt: now,
-    };
+    const user: User = { ...insertUser, id, stripeCustomerId: null, stripeSubscriptionId: null };
     this.users.set(id, user);
     
     // Create trial subscription (30 days)
@@ -343,22 +232,6 @@ export class MemStorage implements IStorage {
     return user;
   }
 
-  async disableUser(userId: string): Promise<User> {
-    const user = this.users.get(userId);
-    if (!user) throw new Error("User not found");
-    user.isActive = false;
-    this.users.set(userId, user);
-    return user;
-  }
-
-  async enableUser(userId: string): Promise<User> {
-    const user = this.users.get(userId);
-    if (!user) throw new Error("User not found");
-    user.isActive = true;
-    this.users.set(userId, user);
-    return user;
-  }
-
   async getContacts(userId: string): Promise<Contact[]> {
     return Array.from(this.contacts.values()).filter((c) => c.userId === userId);
   }
@@ -377,60 +250,9 @@ export class MemStorage implements IStorage {
 
   async createContact(userId: string, insertContact: InsertContact): Promise<Contact> {
     const id = randomUUID();
-    const now = new Date();
-    const contact: Contact = {
-      ...insertContact,
-      id,
-      userId,
-      countryCode: insertContact.countryCode ?? "US",
-      email: insertContact.email ?? null,
-      address: insertContact.address ?? null,
-      profilePicture: insertContact.profilePicture ?? null,
-      notes: insertContact.notes ?? null,
-      skills: insertContact.skills ?? [],
-      qualifications: insertContact.qualifications ?? [],
-      blackoutPeriods: insertContact.blackoutPeriods ?? [],
-      isOptedOut: insertContact.isOptedOut ?? false,
-      quietHoursStart: insertContact.quietHoursStart ?? "22:00",
-      quietHoursEnd: insertContact.quietHoursEnd ?? "07:00",
-      tags: insertContact.tags ?? [],
-      rosterToken: insertContact.rosterToken ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const contact: Contact = { ...insertContact, id, userId, createdAt: new Date() };
     this.contacts.set(id, contact);
     return contact;
-  }
-
-  async bulkCreateContacts(userId: string, insertContacts: InsertContact[]): Promise<Contact[]> {
-    const createdContacts: Contact[] = [];
-    for (const insertContact of insertContacts) {
-      const id = randomUUID();
-      const now = new Date();
-      const contact: Contact = {
-        ...insertContact,
-        id,
-        userId,
-        countryCode: insertContact.countryCode ?? "US",
-        email: insertContact.email ?? null,
-        address: insertContact.address ?? null,
-        profilePicture: insertContact.profilePicture ?? null,
-        notes: insertContact.notes ?? null,
-        skills: insertContact.skills ?? [],
-        qualifications: insertContact.qualifications ?? [],
-        blackoutPeriods: insertContact.blackoutPeriods ?? [],
-        isOptedOut: insertContact.isOptedOut ?? false,
-        quietHoursStart: insertContact.quietHoursStart ?? "22:00",
-        quietHoursEnd: insertContact.quietHoursEnd ?? "07:00",
-        tags: insertContact.tags ?? [],
-        rosterToken: insertContact.rosterToken ?? null,
-        createdAt: now,
-        updatedAt: now,
-      };
-      this.contacts.set(id, contact);
-      createdContacts.push(contact);
-    }
-    return createdContacts;
   }
 
   async updateContact(id: string, updates: Partial<InsertContact>): Promise<Contact> {
@@ -456,15 +278,7 @@ export class MemStorage implements IStorage {
   async createJob(userId: string, insertJob: InsertJob): Promise<Job> {
     const id = randomUUID();
     const now = new Date();
-    const job: Job = {
-      ...insertJob,
-      id,
-      userId,
-      notes: insertJob.notes ?? null,
-      requiredHeadcount: insertJob.requiredHeadcount ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const job: Job = { ...insertJob, id, userId, createdAt: now, updatedAt: now };
     this.jobs.set(id, job);
     return job;
   }
@@ -491,22 +305,7 @@ export class MemStorage implements IStorage {
 
   async createTemplate(userId: string, insertTemplate: InsertTemplate): Promise<Template> {
     const id = randomUUID();
-    const template: Template = {
-      ...insertTemplate,
-      id,
-      userId,
-      type: insertTemplate.type ?? "standard",
-      includeRosterLink: insertTemplate.includeRosterLink ?? false,
-      createdAt: new Date(),
-    };
-    this.templates.set(id, template);
-    return template;
-  }
-
-  async updateTemplate(id: string, updates: Partial<InsertTemplate>): Promise<Template> {
-    const template = this.templates.get(id);
-    if (!template) throw new Error("Template not found");
-    Object.assign(template, updates);
+    const template: Template = { ...insertTemplate, id, userId, createdAt: new Date() };
     this.templates.set(id, template);
     return template;
   }
@@ -546,18 +345,7 @@ export class MemStorage implements IStorage {
 
   async createMessage(userId: string, insertMessage: InsertMessage): Promise<Message> {
     const id = randomUUID();
-    const now = new Date();
-    const message: Message = {
-      ...insertMessage,
-      id,
-      userId,
-      status: insertMessage.status ?? "queued",
-      jobId: insertMessage.jobId ?? null,
-      campaignId: insertMessage.campaignId ?? null,
-      twilioSid: insertMessage.twilioSid ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const message: Message = { ...insertMessage, id, userId, createdAt: new Date() };
     this.messages.set(id, message);
     return message;
   }
@@ -583,10 +371,6 @@ export class MemStorage implements IStorage {
     return Array.from(this.availability.values()).filter((a) => jobIds.has(a.jobId));
   }
 
-  async getAvailabilityByContact(contactId: string): Promise<Availability[]> {
-    return Array.from(this.availability.values()).filter((a) => a.contactId === contactId);
-  }
-
   async getAvailabilityForContact(jobId: string, contactId: string): Promise<Availability | undefined> {
     return Array.from(this.availability.values()).find(
       (a) => a.jobId === jobId && a.contactId === contactId
@@ -602,29 +386,9 @@ export class MemStorage implements IStorage {
       .filter((c): c is Contact => c !== undefined);
   }
 
-  async getCurrentJobForContact(contactId: string): Promise<Job | undefined> {
-    const contactAvailability = Array.from(this.availability.values())
-      .filter((a) => a.contactId === contactId && a.status === "confirmed")
-      .sort((a, b) => {
-        const jobA = this.jobs.get(a.jobId);
-        const jobB = this.jobs.get(b.jobId);
-        if (!jobA || !jobB) return 0;
-        return jobA.startTime.getTime() - jobB.startTime.getTime();
-      });
-    
-    if (contactAvailability.length === 0) return undefined;
-    return this.jobs.get(contactAvailability[0].jobId);
-  }
-
   async createAvailability(insertAvailability: InsertAvailability): Promise<Availability> {
     const id = randomUUID();
-    const availability: Availability = {
-      ...insertAvailability,
-      id,
-      status: insertAvailability.status ?? "no_reply",
-      shiftPreference: insertAvailability.shiftPreference ?? null,
-      updatedAt: new Date(),
-    };
+    const availability: Availability = { ...insertAvailability, id, updatedAt: new Date() };
     this.availability.set(id, availability);
     return availability;
   }
@@ -648,20 +412,7 @@ export class MemStorage implements IStorage {
   async createSubscription(userId: string, insertSubscription: InsertSubscription): Promise<Subscription> {
     const id = randomUUID();
     const now = new Date();
-    const subscription: Subscription = {
-      ...insertSubscription,
-      id,
-      userId,
-      status: insertSubscription.status ?? "trial",
-      currency: insertSubscription.currency ?? "GBP",
-      planId: insertSubscription.planId ?? null,
-      trialEndsAt: insertSubscription.trialEndsAt ?? null,
-      currentPeriodStart: insertSubscription.currentPeriodStart ?? null,
-      currentPeriodEnd: insertSubscription.currentPeriodEnd ?? null,
-      stripeSubscriptionId: insertSubscription.stripeSubscriptionId ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const subscription: Subscription = { ...insertSubscription, id, userId, createdAt: now, updatedAt: now };
     this.subscriptions.set(id, subscription);
     return subscription;
   }
@@ -685,22 +436,7 @@ export class MemStorage implements IStorage {
 
   async createSubscriptionPlan(insertPlan: InsertSubscriptionPlan): Promise<SubscriptionPlan> {
     const id = randomUUID();
-    const plan: SubscriptionPlan = {
-      ...insertPlan,
-      id,
-      description: insertPlan.description ?? null,
-      supportLevel: insertPlan.supportLevel ?? "email",
-      customTemplates: insertPlan.customTemplates ?? false,
-      autoFollowUp: insertPlan.autoFollowUp ?? false,
-      multiManager: insertPlan.multiManager ?? false,
-      aiFeatures: insertPlan.aiFeatures ?? false,
-      dedicatedNumber: insertPlan.dedicatedNumber ?? false,
-      stripePriceIdGBP: insertPlan.stripePriceIdGBP ?? null,
-      stripePriceIdUSD: insertPlan.stripePriceIdUSD ?? null,
-      stripePriceIdEUR: insertPlan.stripePriceIdEUR ?? null,
-      isActive: insertPlan.isActive ?? true,
-      createdAt: new Date(),
-    };
+    const plan: SubscriptionPlan = { ...insertPlan, id, createdAt: new Date() };
     this.subscriptionPlans.set(id, plan);
     return plan;
   }
@@ -715,17 +451,7 @@ export class MemStorage implements IStorage {
 
   async createSmsBundle(insertBundle: InsertSmsBundle): Promise<SmsBundle> {
     const id = randomUUID();
-    const bundle: SmsBundle = {
-      ...insertBundle,
-      id,
-      description: insertBundle.description ?? null,
-      planId: insertBundle.planId ?? null,
-      stripePriceIdGBP: insertBundle.stripePriceIdGBP ?? null,
-      stripePriceIdUSD: insertBundle.stripePriceIdUSD ?? null,
-      stripePriceIdEUR: insertBundle.stripePriceIdEUR ?? null,
-      isActive: insertBundle.isActive ?? true,
-      createdAt: new Date(),
-    };
+    const bundle: SmsBundle = { ...insertBundle, id, createdAt: new Date() };
     this.smsBundles.set(id, bundle);
     return bundle;
   }
@@ -736,15 +462,7 @@ export class MemStorage implements IStorage {
 
   async createCreditGrant(userId: string, insertGrant: InsertCreditGrant): Promise<CreditGrant> {
     const id = randomUUID();
-    const grant: CreditGrant = {
-      ...insertGrant,
-      id,
-      userId,
-      sourceRef: insertGrant.sourceRef ?? null,
-      creditsConsumed: insertGrant.creditsConsumed ?? 0,
-      expiresAt: insertGrant.expiresAt ?? null,
-      createdAt: new Date(),
-    };
+    const grant: CreditGrant = { ...insertGrant, id, createdAt: new Date() };
     this.creditGrants.set(id, grant);
     return grant;
   }
@@ -763,13 +481,7 @@ export class MemStorage implements IStorage {
 
   async createCreditTransaction(userId: string, insertTransaction: InsertCreditTransaction): Promise<CreditTransaction> {
     const id = randomUUID();
-    const transaction: CreditTransaction = {
-      ...insertTransaction,
-      id,
-      userId,
-      messageId: insertTransaction.messageId ?? null,
-      createdAt: new Date(),
-    };
+    const transaction: CreditTransaction = { ...insertTransaction, id, createdAt: new Date() };
     this.creditTransactions.set(id, transaction);
     return transaction;
   }
@@ -923,169 +635,6 @@ export class MemStorage implements IStorage {
 
       return refundTransactions;
     });
-  }
-
-  async updateSubscriptionPlanPricing(id: string, prices: { priceGBP: number; priceUSD: number; priceEUR: number }): Promise<SubscriptionPlan> {
-    const plan = this.subscriptionPlans.get(id);
-    if (!plan) throw new Error("Subscription plan not found");
-    Object.assign(plan, prices);
-    this.subscriptionPlans.set(id, plan);
-    return plan;
-  }
-
-  async updateSmsBundlePricing(id: string, prices: { priceGBP: number; priceUSD: number; priceEUR: number }): Promise<SmsBundle> {
-    const bundle = this.smsBundles.get(id);
-    if (!bundle) throw new Error("SMS bundle not found");
-    Object.assign(bundle, prices);
-    this.smsBundles.set(id, bundle);
-    return bundle;
-  }
-
-  // Reseller methods
-  async getAllResellers(): Promise<Reseller[]> {
-    return Array.from(this.resellers.values());
-  }
-
-  async getReseller(id: string): Promise<Reseller | undefined> {
-    return this.resellers.get(id);
-  }
-
-  async getResellerByReferralCode(code: string): Promise<Reseller | undefined> {
-    return Array.from(this.resellers.values()).find((r) => r.referralCode === code);
-  }
-
-  async createReseller(insertReseller: InsertReseller): Promise<Reseller> {
-    const id = randomUUID();
-    const now = new Date();
-    const reseller: Reseller = {
-      ...insertReseller,
-      id,
-      commissionRate: insertReseller.commissionRate ?? 20,
-      status: insertReseller.status ?? "active",
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.resellers.set(id, reseller);
-    return reseller;
-  }
-
-  async updateReseller(id: string, updates: Partial<InsertReseller>): Promise<Reseller> {
-    const reseller = this.resellers.get(id);
-    if (!reseller) throw new Error("Reseller not found");
-    Object.assign(reseller, { ...updates, updatedAt: new Date() });
-    this.resellers.set(id, reseller);
-    return reseller;
-  }
-
-  async deleteReseller(id: string): Promise<void> {
-    this.resellers.delete(id);
-  }
-
-  async createResellerTransaction(insertTransaction: InsertResellerTransaction): Promise<ResellerTransaction> {
-    const id = randomUUID();
-    const now = new Date();
-    const transaction: ResellerTransaction = {
-      ...insertTransaction,
-      id,
-      stripeEventId: insertTransaction.stripeEventId ?? null,
-      stripeInvoiceId: insertTransaction.stripeInvoiceId ?? null,
-      stripeCheckoutId: insertTransaction.stripeCheckoutId ?? null,
-      occurredAt: insertTransaction.occurredAt || now,
-      createdAt: now,
-    };
-    this.resellerTransactions.set(id, transaction);
-    return transaction;
-  }
-
-  async getResellerTransactions(resellerId: string): Promise<ResellerTransaction[]> {
-    return Array.from(this.resellerTransactions.values())
-      .filter((t) => t.resellerId === resellerId)
-      .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
-  }
-
-  async getResellerTransactionsByMonth(resellerId: string, month: number, year: number): Promise<ResellerTransaction[]> {
-    return Array.from(this.resellerTransactions.values()).filter((t) => {
-      if (t.resellerId !== resellerId) return false;
-      const occurredAt = t.occurredAt;
-      return occurredAt.getMonth() + 1 === month && occurredAt.getFullYear() === year;
-    });
-  }
-
-  async getResellerTransactionByStripeEventId(eventId: string): Promise<ResellerTransaction | undefined> {
-    return Array.from(this.resellerTransactions.values()).find((t) => t.stripeEventId === eventId);
-  }
-
-  async getResellerPayout(resellerId: string, month: number, year: number): Promise<ResellerPayout | undefined> {
-    return Array.from(this.resellerPayouts.values()).find(
-      (p) => p.resellerId === resellerId && p.month === month && p.year === year
-    );
-  }
-
-  async getResellerPayouts(resellerId: string): Promise<ResellerPayout[]> {
-    return Array.from(this.resellerPayouts.values())
-      .filter((p) => p.resellerId === resellerId)
-      .sort((a, b) => b.year - a.year || b.month - a.month);
-  }
-
-  async createOrUpdateResellerPayout(insertPayout: InsertResellerPayout): Promise<ResellerPayout> {
-    const existing = await this.getResellerPayout(
-      insertPayout.resellerId,
-      insertPayout.month,
-      insertPayout.year
-    );
-
-    if (existing) {
-      Object.assign(existing, { ...insertPayout, updatedAt: new Date() });
-      this.resellerPayouts.set(existing.id, existing);
-      return existing;
-    } else {
-      const id = randomUUID();
-      const now = new Date();
-      const payout: ResellerPayout = {
-        ...insertPayout,
-        id,
-        currency: insertPayout.currency ?? "GBP",
-        newRevenue: insertPayout.newRevenue ?? 0,
-        recurringRevenue: insertPayout.recurringRevenue ?? 0,
-        totalRevenue: insertPayout.totalRevenue ?? 0,
-        commissionAmount: insertPayout.commissionAmount ?? 0,
-        transactionCount: insertPayout.transactionCount ?? 0,
-        status: insertPayout.status ?? "pending",
-        lastCalculatedAt: now,
-        createdAt: now,
-        updatedAt: now,
-      };
-      this.resellerPayouts.set(id, payout);
-      return payout;
-    }
-  }
-
-  async createFeedback(insertFeedback: InsertFeedback): Promise<Feedback> {
-    const id = randomUUID();
-    const feedback: Feedback = {
-      ...insertFeedback,
-      id,
-      userId: (insertFeedback as any).userId,
-      status: "new",
-      createdAt: new Date(),
-    };
-    this.feedbacks.set(id, feedback);
-    return feedback;
-  }
-
-  async getAllFeedback(): Promise<Feedback[]> {
-    return Array.from(this.feedbacks.values())
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  }
-
-  async updateFeedbackStatus(id: string, status: string): Promise<Feedback> {
-    const feedback = this.feedbacks.get(id);
-    if (!feedback) {
-      throw new Error("Feedback not found");
-    }
-    feedback.status = status;
-    this.feedbacks.set(id, feedback);
-    return feedback;
   }
 }
 

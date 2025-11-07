@@ -1,4 +1,3 @@
-import "dotenv/config";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import express from "express";
@@ -11,11 +10,11 @@ import { getTwilioClient, getTwilioFromPhoneNumber } from "./lib/twilio-client";
 import { renderTemplate } from "./lib/template-renderer";
 import { parseReply } from "./lib/reply-parser";
 import { generateICS } from "./lib/ics-generator";
-import { insertJobSchema, insertContactSchema, insertTemplateSchema, insertAvailabilitySchema, insertFeedbackSchema } from "@shared/schema";
+import { insertJobSchema, insertContactSchema, insertTemplateSchema, insertAvailabilitySchema } from "@shared/schema";
 import Stripe from "stripe";
 import authRoutes from "./auth-routes";
 import PDFDocument from "pdfkit";
-import { sendTeamMessageNotification, sendTeamInvitationEmail, sendCancellationNotification } from "./email";
+import { sendTeamMessageNotification } from "./email";
 
 const creditService = new CreditService(storage);
 
@@ -23,13 +22,79 @@ const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-09-30.clover" })
   : null;
 
-import { constructE164Phone, normalizePhoneNumber } from "./lib/phone-utils";
+// Country dial codes mapping
+const COUNTRY_DIAL_CODES: Record<string, string> = {
+  "US": "+1", "CA": "+1", "GB": "+44", "AU": "+61", "NZ": "+64",
+  "IE": "+353", "IN": "+91", "SG": "+65", "MX": "+52", "DE": "+49",
+  "FR": "+33", "ES": "+34", "IT": "+39",
+};
 
 // Placeholder for calendar sync - currently uses .ics file downloads instead
 async function syncJobToCalendars(userId: string, job: any): Promise<void> {
   // Calendar integration is done via downloadable .ics files
   // No automatic syncing needed
   return Promise.resolve();
+}
+
+// Helper function to construct E.164 phone number
+function constructE164Phone(countryCode: string, phone: string): string {
+  // Strip all non-digit characters first
+  let cleaned = phone.replace(/\D/g, '');
+  
+  // If original started with +, handle optional trunk prefix in formats like "+44 (0)20..."
+  if (phone.trim().startsWith('+')) {
+    const result = '+' + cleaned;
+    // For countries that don't use trunk 0 in international format, remove it if present
+    // Patterns: +440... (UK), +610... (AU), +640... (NZ), etc.
+    // Keep 0 for Italy (+390...)
+    if (result.startsWith('+440') || result.startsWith('+610') || result.startsWith('+640') || 
+        result.startsWith('+3530') || result.startsWith('+910') || result.startsWith('+650') || 
+        result.startsWith('+520') || result.startsWith('+490') || result.startsWith('+330') || 
+        result.startsWith('+340') || result.startsWith('+10')) {
+      // Remove the trunk 0 after country code
+      return result.replace(/^(\+\d{1,3})0/, '$1');
+    }
+    return result;
+  }
+  
+  // Handle international access codes (check longest codes first)
+  if (cleaned.startsWith('0011')) {
+    cleaned = cleaned.substring(4);
+  } else if (cleaned.startsWith('011')) {
+    cleaned = cleaned.substring(3);
+  } else if (cleaned.startsWith('001')) {
+    cleaned = cleaned.substring(3);
+  } else if (cleaned.startsWith('00')) {
+    cleaned = cleaned.substring(2);
+  }
+  
+  // Check if number already starts with a country code (after stripping access codes)
+  // Common country codes from our list: 1, 33, 34, 39, 44, 49, 52, 61, 64, 65, 91, 353
+  const commonCodes = ['1', '33', '34', '39', '44', '49', '52', '61', '64', '65', '91', '353'];
+  for (const code of commonCodes) {
+    if (cleaned.startsWith(code)) {
+      // Already has country code, but may have trunk prefix after it
+      const result = '+' + cleaned;
+      // Remove trunk 0 after country code (except Italy)
+      if (result.startsWith('+440') || result.startsWith('+610') || result.startsWith('+640') || 
+          result.startsWith('+3530') || result.startsWith('+910') || result.startsWith('+650') || 
+          result.startsWith('+520') || result.startsWith('+490') || result.startsWith('+330') || 
+          result.startsWith('+340') || result.startsWith('+10')) {
+        return result.replace(/^(\+\d{1,3})0/, '$1');
+      }
+      return result;
+    }
+  }
+  
+  // No country code detected, so this is a national number
+  // Remove leading trunk prefix (usually 0) for most countries except Italy
+  if (cleaned.startsWith('0') && countryCode !== 'IT') {
+    cleaned = cleaned.substring(1);
+  }
+  
+  // Prepend the country dial code
+  const dialCode = COUNTRY_DIAL_CODES[countryCode] || "+1";
+  return dialCode + cleaned;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -107,13 +172,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "User with this email already exists" });
       }
       
-      // Get organization details
-      const organization = await storage.getOrganization(req.user.organizationId);
-      if (!organization) {
-        return res.status(404).json({ message: "Organization not found" });
-      }
-      
-      // Generate a temporary password
+      // Generate a temporary password (in production, send via email)
       const tempPassword = Math.random().toString(36).slice(-8);
       const hashedPassword = await bcrypt.hash(tempPassword, 10);
       
@@ -123,42 +182,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create user in the same organization
       const newUser = await storage.createUser({
         username,
-        firstName,
-        lastName,
         email,
         password: hashedPassword,
-        organizationId: req.user.organizationId,
-        teamRole: teamRole || "member",
-        isAdmin: false,
-        stripeCustomerId: null,
-        stripeSubscriptionId: null,
-      } as any);
+      });
       
-      // Get inviting user's name
-      const invitedByName = req.user.firstName && req.user.lastName 
-        ? `${req.user.firstName} ${req.user.lastName}`
-        : req.user.username || req.user.email;
-      
-      // Send invitation email
-      const loginUrl = `${req.protocol}://${req.get('host')}/auth`;
-      try {
-        await sendTeamInvitationEmail(
-          email,
-          firstName,
-          tempPassword,
-          organization.name,
-          invitedByName,
-          loginUrl
-        );
-        console.log(`Team invitation email sent to ${email}`);
-      } catch (emailError) {
-        console.error('Failed to send team invitation email:', emailError);
-        // Continue even if email fails, but log the error
-      }
-      
-      // Don't return password hash or temporary password
+      // Don't return password hash
       const { password, ...safeUser } = newUser;
-      res.json(safeUser);
+      const response = { 
+        ...safeUser, 
+        temporaryPassword: tempPassword
+      };
+      res.json(response);
     } catch (error: any) {
       console.error("Invite error:", error);
       res.status(500).json({ message: error.message });
@@ -261,8 +295,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // In a real app, we'd handle user deletion more carefully
-      // For now, just update their organizationId to null
-      await storage.updateUser(userId, { organizationId: null } as any);
+      // For now, we'll just disable the user
+      await storage.disableUser(userId);
       
       res.json({ success: true });
     } catch (error: any) {
@@ -488,46 +522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/contacts", requireAuth, async (req: any, res) => {
     try {
       const contacts = await storage.getContacts(req.user.id);
-      const allAvailability = await storage.getAllAvailability(req.user.id);
-      const jobs = await storage.getJobs(req.user.id);
-      
-      // Get today's date range (start and end of day)
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-      
-      // Precompute job map for performance
-      const jobMap = new Map(jobs.map(job => [job.id, job]));
-      
-      // Calculate dynamic status for each contact based on TODAY's jobs
-      const contactsWithStatus = contacts.map(contact => {
-        // Find if contact has confirmed availability for any job TODAY
-        const hasJobToday = allAvailability.some(avail => {
-          if (avail.contactId !== contact.id || avail.status !== 'confirmed') {
-            return false;
-          }
-          
-          const job = jobMap.get(avail.jobId);
-          if (!job) {
-            return false;
-          }
-          
-          const jobStart = new Date(job.startTime);
-          const jobEnd = new Date(job.endTime);
-          
-          // Check if job overlaps with today
-          return (jobStart <= todayEnd && jobEnd >= todayStart);
-        });
-        
-        // Override status to "on_job" only if they have a job TODAY
-        // Otherwise use their stored status (free or off_shift)
-        return {
-          ...contact,
-          status: hasJobToday ? 'on_job' : (contact.status === 'on_job' ? 'free' : contact.status)
-        };
-      });
-      
-      res.json(contactsWithStatus);
+      res.json(contacts);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -624,61 +619,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ url });
     } catch (error: any) {
       console.error('Image upload error:', error);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.post("/api/contacts/bulk", requireAuth, async (req: any, res) => {
-    try {
-      const userId = req.user.id;
-      const { contacts: phoneContacts } = req.body;
-
-      if (!Array.isArray(phoneContacts)) {
-        return res.status(400).json({ message: "Invalid request: contacts must be an array" });
-      }
-
-      const results = {
-        imported: 0,
-        skipped: 0,
-        errors: [] as string[],
-      };
-
-      // Fetch existing contacts once
-      const existingContacts = await storage.getContacts(userId);
-      const existingPhones = new Set(existingContacts.map(c => c.phone));
-
-      for (let i = 0; i < phoneContacts.length; i++) {
-        const phoneContact = phoneContacts[i];
-
-        try {
-          // Validate contact data using Zod schema
-          const contactData = insertContactSchema.parse({
-            userId,
-            firstName: phoneContact.firstName,
-            lastName: phoneContact.lastName,
-            phone: phoneContact.phone,
-            email: phoneContact.email || undefined,
-            status: 'free',
-            countryCode: phoneContact.countryCode || 'GB',
-          });
-
-          // Skip duplicates
-          if (existingPhones.has(contactData.phone)) {
-            results.skipped++;
-            continue;
-          }
-
-          await storage.createContact(userId, contactData);
-          results.imported++;
-          existingPhones.add(contactData.phone);
-        } catch (error: any) {
-          results.errors.push(`Contact ${i + 1}: ${error.message}`);
-          results.skipped++;
-        }
-      }
-
-      res.json(results);
-    } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
@@ -865,42 +805,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contacts = await storage.getContacts(userId);
       const jobs = await storage.getJobs(userId);
       const allAvailability = await storage.getAllAvailability(userId);
-      const user = await storage.getUser(userId);
-      
-      // Get today's date range (start and end of day)
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-      
-      // Precompute job map for performance
-      const jobMap = new Map(jobs.map(job => [job.id, job]));
-      
-      // Calculate dynamic status for each contact based on TODAY's jobs
-      const contactsWithStatus = contacts.map(contact => {
-        const hasJobToday = allAvailability.some(avail => {
-          if (avail.contactId !== contact.id || avail.status !== 'confirmed') {
-            return false;
-          }
-          
-          const job = jobMap.get(avail.jobId);
-          if (!job) {
-            return false;
-          }
-          
-          const jobStart = new Date(job.startTime);
-          const jobEnd = new Date(job.endTime);
-          
-          return (jobStart <= todayEnd && jobEnd >= todayStart);
-        });
-        
-        return {
-          ...contact,
-          status: hasJobToday ? 'on_job' : (contact.status === 'on_job' ? 'free' : contact.status)
-        };
-      });
       
       // Create a PDF document
-      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const doc = new PDFDocument({ margin: 50 });
       
       // Set response headers for PDF download
       res.setHeader('Content-Type', 'application/pdf');
@@ -909,43 +816,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Pipe the PDF to the response
       doc.pipe(res);
       
-      // Define colors
-      const primaryColor = '#0EA5E9'; // Sky blue
-      const successColor = '#10B981'; // Green
-      const warningColor = '#F59E0B'; // Amber
-      const dangerColor = '#EF4444'; // Red
-      const grayColor = '#6B7280'; // Gray
-      const lightGray = '#F3F4F6';
+      // Add title
+      doc.fontSize(20).font('Helvetica-Bold').text('Resource Allocation Report', { align: 'center' });
+      doc.moveDown();
+      doc.fontSize(10).font('Helvetica').text(`Generated: ${new Date().toLocaleString()}`, { align: 'center' });
+      doc.moveDown(2);
       
-      // Helper function to draw a colored box
-      const drawBox = (y: number, height: number, color: string) => {
-        doc.rect(50, y, doc.page.width - 100, height)
-           .fill(color);
-      };
-      
-      // Header with colored background
-      drawBox(30, 80, primaryColor);
-      doc.fillColor('white')
-         .fontSize(24)
-         .font('Helvetica-Bold')
-         .text('RESOURCE ALLOCATION REPORT', 50, 50, { align: 'center' });
-      doc.fontSize(11)
-         .font('Helvetica')
-         .text(`Generated: ${new Date().toLocaleDateString('en-GB', { 
-           weekday: 'long', 
-           year: 'numeric', 
-           month: 'long', 
-           day: 'numeric',
-           hour: '2-digit',
-           minute: '2-digit'
-         })}`, 50, 80, { align: 'center' });
-      
-      doc.moveDown(4);
-      
-      // Group contacts by status (using calculated status)
-      const contactsOnJob = contactsWithStatus.filter(c => c.status === 'on_job');
-      const contactsAvailable = contactsWithStatus.filter(c => c.status === 'free');
-      const contactsOffShift = contactsWithStatus.filter(c => c.status === 'off_shift');
+      // Group contacts by status
+      const contactsOnJob = contacts.filter(c => c.status === 'on_job');
+      const contactsAvailable = contacts.filter(c => c.status === 'free');
+      const contactsOffShift = contacts.filter(c => c.status === 'off_shift');
       
       // Create a map of contact assignments
       const contactJobMap = new Map<string, any>();
@@ -958,44 +838,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
       
-      // Summary Cards at the top
-      const summaryY = doc.y;
-      const cardWidth = 120;
-      const cardHeight = 60;
-      const spacing = 20;
-      
-      // Card 1: Total Contacts
-      doc.roundedRect(50, summaryY, cardWidth, cardHeight, 5).fillAndStroke(lightGray, grayColor);
-      doc.fillColor(grayColor).fontSize(10).font('Helvetica').text('Total Contacts', 60, summaryY + 15);
-      doc.fillColor('black').fontSize(24).font('Helvetica-Bold').text(contactsWithStatus.length.toString(), 60, summaryY + 30);
-      
-      // Card 2: On Job
-      doc.roundedRect(50 + cardWidth + spacing, summaryY, cardWidth, cardHeight, 5).fillAndStroke('#DCFCE7', successColor);
-      doc.fillColor(successColor).fontSize(10).font('Helvetica').text('On Job', 60 + cardWidth + spacing, summaryY + 15);
-      doc.fillColor('black').fontSize(24).font('Helvetica-Bold').text(contactsOnJob.length.toString(), 60 + cardWidth + spacing, summaryY + 30);
-      
-      // Card 3: Available
-      doc.roundedRect(50 + (cardWidth + spacing) * 2, summaryY, cardWidth, cardHeight, 5).fillAndStroke('#DBEAFE', primaryColor);
-      doc.fillColor(primaryColor).fontSize(10).font('Helvetica').text('Available', 60 + (cardWidth + spacing) * 2, summaryY + 15);
-      doc.fillColor('black').fontSize(24).font('Helvetica-Bold').text(contactsAvailable.length.toString(), 60 + (cardWidth + spacing) * 2, summaryY + 30);
-      
-      // Card 4: Off Shift
-      doc.roundedRect(50 + (cardWidth + spacing) * 3, summaryY, cardWidth, cardHeight, 5).fillAndStroke('#FEF3C7', warningColor);
-      doc.fillColor(warningColor).fontSize(10).font('Helvetica').text('Off Shift', 60 + (cardWidth + spacing) * 3, summaryY + 15);
-      doc.fillColor('black').fontSize(24).font('Helvetica-Bold').text(contactsOffShift.length.toString(), 60 + (cardWidth + spacing) * 3, summaryY + 30);
-      
-      doc.moveDown(5);
-      
       // Section 1: Contacts on Jobs
-      doc.fillColor(successColor)
-         .fontSize(16)
-         .font('Helvetica-Bold')
-         .text('● Contacts Assigned to Jobs', { continued: false });
-      doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).strokeColor(successColor).stroke();
+      doc.fontSize(14).font('Helvetica-Bold').text('Contacts Assigned to Jobs', { underline: true });
       doc.moveDown();
       
       if (contactsOnJob.length === 0) {
-        doc.fillColor(grayColor).fontSize(10).font('Helvetica-Oblique').text('No contacts currently assigned to jobs.');
+        doc.fontSize(10).font('Helvetica-Oblique').text('No contacts currently assigned to jobs.');
         doc.moveDown();
       } else {
         // Group contacts by job
@@ -1013,42 +861,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         jobGroups.forEach((contactsList, jobId) => {
           const job = jobs.find(j => j.id === jobId);
           if (job) {
-            const boxY = doc.y;
-            doc.roundedRect(50, boxY, doc.page.width - 100, 10 + (contactsList.length * 15) + 50, 5)
-               .fillAndStroke('#F0FDF4', '#86EFAC');
-            
-            doc.fillColor('black').fontSize(13).font('Helvetica-Bold').text(`📋 ${job.name}`, 60, boxY + 10);
-            doc.fillColor(grayColor).fontSize(9).font('Helvetica');
-            doc.text(`📍 ${job.location || 'N/A'}`, 60, doc.y + 5);
-            doc.text(`📅 ${new Date(job.startTime).toLocaleDateString('en-GB', { 
-              weekday: 'short', 
-              day: '2-digit', 
-              month: 'short', 
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })} - ${new Date(job.endTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`, 60, doc.y + 3);
-            
-            if (job.notes) {
-              doc.fillColor(grayColor).fontSize(8).font('Helvetica-Oblique').text(`Note: ${job.notes}`, 60, doc.y + 3, { width: doc.page.width - 120 });
-            }
-            
+            doc.fontSize(12).font('Helvetica-Bold').text(`${job.name}`, { continued: false });
+            doc.fontSize(10).font('Helvetica').text(`Location: ${job.location || 'N/A'}`);
+            doc.text(`Start: ${new Date(job.startTime).toLocaleString()}`);
             doc.moveDown(0.5);
-            doc.fillColor('black').fontSize(10).font('Helvetica-Bold').text('Team Members:', 60, doc.y + 5);
             
             contactsList.forEach((contact, index) => {
-              doc.fillColor('black').fontSize(9).font('Helvetica').text(
-                `  ${index + 1}. ${contact.firstName} ${contact.lastName}`,
-                70,
-                doc.y + 3
-              );
-              doc.fillColor(grayColor).fontSize(8).text(
-                `     📞 ${contact.phone}${contact.email ? ` • 📧 ${contact.email}` : ''}`,
-                70,
-                doc.y + 2
+              doc.fontSize(10).font('Helvetica').text(
+                `  ${index + 1}. ${contact.firstName} ${contact.lastName} - ${contact.phone}${contact.email ? ` (${contact.email})` : ''}`,
+                { indent: 20 }
               );
             });
-            doc.moveDown(1.5);
+            doc.moveDown();
           }
         });
       }
@@ -1056,29 +880,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       doc.moveDown();
       
       // Section 2: Available Contacts
-      doc.fillColor(primaryColor)
-         .fontSize(16)
-         .font('Helvetica-Bold')
-         .text('● Available Contacts', { continued: false });
-      doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).strokeColor(primaryColor).stroke();
+      doc.fontSize(14).font('Helvetica-Bold').text('Available Contacts', { underline: true });
       doc.moveDown();
       
       if (contactsAvailable.length === 0) {
-        doc.fillColor(grayColor).fontSize(10).font('Helvetica-Oblique').text('No contacts currently available.');
+        doc.fontSize(10).font('Helvetica-Oblique').text('No contacts currently available.');
       } else {
+        doc.fontSize(10).font('Helvetica').text(`Total Available: ${contactsAvailable.length}`);
+        doc.moveDown(0.5);
         contactsAvailable.forEach((contact, index) => {
-          if (index % 2 === 0) {
-            doc.roundedRect(50, doc.y - 2, doc.page.width - 100, 15, 3).fill('#EFF6FF');
-          }
-          doc.fillColor('black').fontSize(10).font('Helvetica').text(
-            `${index + 1}. ${contact.firstName} ${contact.lastName}`,
-            60,
-            doc.y + 2,
-            { continued: true, width: 200 }
-          );
-          doc.fillColor(grayColor).fontSize(9).text(
-            ` • ${contact.phone}${contact.email ? ` • ${contact.email}` : ''}`,
-            { continued: false }
+          doc.fontSize(10).font('Helvetica').text(
+            `${index + 1}. ${contact.firstName} ${contact.lastName} - ${contact.phone}${contact.email ? ` (${contact.email})` : ''}`
           );
         });
       }
@@ -1086,40 +898,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       doc.moveDown(2);
       
       // Section 3: Off Shift Contacts
-      doc.fillColor(warningColor)
-         .fontSize(16)
-         .font('Helvetica-Bold')
-         .text('● Off Shift Contacts', { continued: false });
-      doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).strokeColor(warningColor).stroke();
+      doc.fontSize(14).font('Helvetica-Bold').text('Off Shift Contacts', { underline: true });
       doc.moveDown();
       
       if (contactsOffShift.length === 0) {
-        doc.fillColor(grayColor).fontSize(10).font('Helvetica-Oblique').text('No contacts currently off shift.');
+        doc.fontSize(10).font('Helvetica-Oblique').text('No contacts currently off shift.');
       } else {
+        doc.fontSize(10).font('Helvetica').text(`Total Off Shift: ${contactsOffShift.length}`);
+        doc.moveDown(0.5);
         contactsOffShift.forEach((contact, index) => {
-          if (index % 2 === 0) {
-            doc.roundedRect(50, doc.y - 2, doc.page.width - 100, 15, 3).fill('#FFFBEB');
-          }
-          doc.fillColor('black').fontSize(10).font('Helvetica').text(
-            `${index + 1}. ${contact.firstName} ${contact.lastName}`,
-            60,
-            doc.y + 2,
-            { continued: true, width: 200 }
-          );
-          doc.fillColor(grayColor).fontSize(9).text(
-            ` • ${contact.phone}${contact.email ? ` • ${contact.email}` : ''}`,
-            { continued: false }
+          doc.fontSize(10).font('Helvetica').text(
+            `${index + 1}. ${contact.firstName} ${contact.lastName} - ${contact.phone}${contact.email ? ` (${contact.email})` : ''}`
           );
         });
       }
       
-      // Footer
+      // Add summary footer
       doc.moveDown(3);
-      const footerY = doc.page.height - 80;
-      doc.moveTo(50, footerY).lineTo(doc.page.width - 50, footerY).strokeColor(grayColor).stroke();
-      doc.fillColor(grayColor).fontSize(8).font('Helvetica')
-         .text(`HeyTeam Resource Allocation Report`, 50, footerY + 10, { align: 'center' });
-      doc.text(`© ${new Date().getFullYear()} HeyTeam. All rights reserved.`, { align: 'center' });
+      doc.fontSize(12).font('Helvetica-Bold').text('Summary', { underline: true });
+      doc.moveDown(0.5);
+      doc.fontSize(10).font('Helvetica');
+      doc.text(`Total Contacts: ${contacts.length}`);
+      doc.text(`On Job: ${contactsOnJob.length}`);
+      doc.text(`Available: ${contactsAvailable.length}`);
+      doc.text(`Off Shift: ${contactsOffShift.length}`);
       
       // Finalize the PDF
       doc.end();
@@ -1172,25 +974,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validated = insertTemplateSchema.parse(req.body);
       const template = await storage.createTemplate(req.user.id, validated);
       res.json(template);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.patch("/api/templates/:id", requireAuth, async (req: any, res) => {
-    try {
-      // Verify the template belongs to the user
-      const template = await storage.getTemplate(req.params.id);
-      if (!template) {
-        return res.status(404).json({ message: "Template not found" });
-      }
-      if (template.userId !== req.user.id) {
-        return res.status(403).json({ message: "Not authorized to update this template" });
-      }
-
-      const validated = insertTemplateSchema.parse(req.body);
-      const updated = await storage.updateTemplate(req.params.id, validated);
-      res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -1255,8 +1038,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const contact = await storage.getContact(contactId);
         if (!contact || contact.isOptedOut) continue;
 
-        // Always set availability to "no_reply" when sending a new message
-        // This resets their status and waits for their reply via webhook
         let existing = await storage.getAvailabilityForContact(jobId, contactId);
         if (!existing) {
           existing = await storage.createAvailability({
@@ -1264,12 +1045,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             contactId,
             status: "no_reply",
             shiftPreference: null,
-          });
-        } else {
-          // Update existing availability to "no_reply" when sending a new message
-          existing = await storage.updateAvailability(existing.id, {
-            status: "no_reply",
-            // Keep existing shiftPreference if any
           });
         }
 
@@ -1532,84 +1307,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Update user's subscription
               const userSub = await storage.getSubscription(userId);
               if (userSub) {
-                const subData = subscription as any;
-                const updateData: any = {
-                  planId,
-                  currency,
-                  stripeSubscriptionId: subscriptionId,
-                  status: subscription.status,
-                };
-
-                // Safely convert Stripe timestamps to Date objects
-                if (subData.current_period_start && typeof subData.current_period_start === 'number') {
-                  updateData.currentPeriodStart = new Date(subData.current_period_start * 1000);
-                }
-                if (subData.current_period_end && typeof subData.current_period_end === 'number') {
-                  updateData.currentPeriodEnd = new Date(subData.current_period_end * 1000);
-                }
-
-                await storage.updateSubscription(userId, updateData);
-              }
-
-              // Grant credits for the subscription period
-              const subData = subscription as any;
-              let expiryDate: Date;
-              if (subData.current_period_end && typeof subData.current_period_end === 'number') {
-                expiryDate = new Date(subData.current_period_end * 1000);
-              } else {
-                // Fallback: set expiry to 1 month from now if period_end is missing
-                expiryDate = new Date();
-                expiryDate.setMonth(expiryDate.getMonth() + 1);
-              }
-              
-              await creditService.grantCredits(
-                userId,
-                "subscription",
-                plan.monthlyCredits,
+                await storage.updateSubscription(userId, {
                 planId,
-                expiryDate
-              );
+                currency,
+                stripeSubscriptionId: subscriptionId,
+                status: subscription.status,
+                currentPeriodStart: new Date((subscription as any).current_period_start * 1000),
+                currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+              });
+            }
+
+            // Grant credits for the subscription period
+            const expiryDate = new Date((subscription as any).current_period_end * 1000);
+            await creditService.grantCredits(
+              userId,
+              "subscription",
+              plan.monthlyCredits,
+              planId,
+              expiryDate
+            );
 
               console.log(`Granted ${plan.monthlyCredits} credits to user ${userId} for subscription ${planId}`);
-
-              // Record reseller transaction if user was referred
-              const user = await storage.getUser(userId) as any;
-              if (user?.resellerId) {
-                const reseller = await storage.getReseller(user.resellerId);
-                if (reseller && reseller.status === "active") {
-                  // Check if event already processed (idempotency)
-                  const existing = await storage.getResellerTransactionByStripeEventId(event.id);
-                  if (existing) {
-                    console.log(`Event ${event.id} already processed, skipping reseller transaction`);
-                  } else {
-                    // Calculate revenue based on currency
-                    let revenueAmount = 0;
-                    if (currency === "GBP") {
-                      revenueAmount = plan.priceGBP;
-                    } else if (currency === "USD") {
-                      revenueAmount = plan.priceUSD;
-                    } else if (currency === "EUR") {
-                      revenueAmount = plan.priceEUR;
-                    }
-
-                    const commissionAmount = Math.round(revenueAmount * (reseller.commissionRate / 100));
-
-                    await storage.createResellerTransaction({
-                      resellerId: reseller.id,
-                      userId,
-                      type: "subscription_start",
-                      amount: revenueAmount,
-                      currency,
-                      commissionAmount,
-                      occurredAt: new Date(),
-                      stripeEventId: event.id,
-                    });
-
-                    console.log(`Recorded reseller transaction for ${reseller.name}: ${revenueAmount} ${currency}, commission: ${commissionAmount}`);
-                  }
-                }
-              }
-            } else if (session.mode === "payment") {
+            } else if (session.mode === "payment" && session.payment_intent) {
               // Handle one-time bundle purchase
               const bundleId = session.metadata?.bundleId;
 
@@ -1625,78 +1344,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 break;
               }
 
-              // Grant credits for the bundle purchase
-              // Bundle credits don't expire (or have a very long expiry)
-              const expiryDate = new Date();
-              expiryDate.setFullYear(expiryDate.getFullYear() + 10); // 10 years from now
-
+              // Grant credits (bundles don't expire)
               await creditService.grantCredits(
                 userId,
                 "bundle",
                 bundle.credits,
                 bundleId,
-                expiryDate
+                null
               );
 
               console.log(`Granted ${bundle.credits} credits to user ${userId} for bundle ${bundleId}`);
-
-              // Record reseller transaction if user was referred
-              const user = await storage.getUser(userId) as any;
-              if (user?.resellerId) {
-                const reseller = await storage.getReseller(user.resellerId);
-                if (reseller && reseller.status === "active") {
-                  // Check if event already processed (idempotency)
-                  const existing = await storage.getResellerTransactionByStripeEventId(event.id);
-                  if (existing) {
-                    console.log(`Event ${event.id} already processed, skipping reseller transaction`);
-                  } else {
-                    // Get currency from session
-                    const currency = session.metadata?.currency || user.currency || "GBP";
-                    
-                    // Calculate revenue based on currency
-                    let revenueAmount = 0;
-                    if (currency === "GBP") {
-                      revenueAmount = bundle.priceGBP;
-                    } else if (currency === "USD") {
-                      revenueAmount = bundle.priceUSD;
-                    } else if (currency === "EUR") {
-                      revenueAmount = bundle.priceEUR;
-                    }
-
-                    const commissionAmount = Math.round(revenueAmount * (reseller.commissionRate / 100));
-
-                    await storage.createResellerTransaction({
-                      resellerId: reseller.id,
-                      userId,
-                      type: "bundle_purchase",
-                      amount: revenueAmount,
-                      currency,
-                      commissionAmount,
-                      occurredAt: new Date(),
-                      stripeEventId: event.id,
-                    });
-
-                    console.log(`Recorded reseller transaction for ${reseller.name}: ${revenueAmount} ${currency}, commission: ${commissionAmount}`);
-                  }
-                }
-              }
             }
             break;
           }
 
-          case "invoice.payment_succeeded": {
-            const invoice = event.data.object as any;
-            const subscriptionId = typeof invoice.subscription === 'string' 
-              ? invoice.subscription 
-              : invoice.subscription?.id;
+        case "invoice.payment_succeeded": {
+          const invoice = event.data.object as any;
+          const subscriptionId = typeof invoice.subscription === 'string' 
+            ? invoice.subscription 
+            : invoice.subscription?.id;
 
-            if (!subscriptionId) {
-              console.log("Invoice not for a subscription, skipping");
-              break;
-            }
+          if (!subscriptionId) {
+            console.log("Invoice not for a subscription, skipping");
+            break;
+          }
 
             // Find the subscription
-            const subscriptions = await storage.getAllSubscriptions() || [];
+            const subscriptions = await storage.getAllSubscriptions?.() || [];
             const userSub = subscriptions.find(s => s.stripeSubscriptionId === subscriptionId);
 
             if (!userSub) {
@@ -1707,86 +1381,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Get the subscription from Stripe
             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
-            // Update subscription dates
-            const subData = subscription as any;
-            const updateData: any = {
-              status: subscription.status,
-            };
+          // Update subscription dates
+          await storage.updateSubscription(userSub.userId, {
+            status: subscription.status,
+            currentPeriodStart: new Date((subscription as any).current_period_start * 1000),
+            currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+          });
 
-            // Safely convert Stripe timestamps to Date objects
-            if (subData.current_period_start && typeof subData.current_period_start === 'number') {
-              updateData.currentPeriodStart = new Date(subData.current_period_start * 1000);
+          // Grant credits for the new period (if not the first invoice)
+          if ((invoice as any).billing_reason === "subscription_cycle" && userSub.planId) {
+            const plan = await storage.getSubscriptionPlan(userSub.planId);
+            if (plan) {
+              const expiryDate = new Date((subscription as any).current_period_end * 1000);
+              await creditService.grantCredits(
+                userSub.userId,
+                "subscription",
+                plan.monthlyCredits,
+                userSub.planId,
+                expiryDate
+              );
+
+              console.log(`Granted ${plan.monthlyCredits} credits to user ${userSub.userId} for renewal`);
             }
-            if (subData.current_period_end && typeof subData.current_period_end === 'number') {
-              updateData.currentPeriodEnd = new Date(subData.current_period_end * 1000);
-            }
-
-            await storage.updateSubscription(userSub.userId, updateData);
-
-            // Grant credits for the new period (if not the first invoice)
-            if (invoice.billing_reason === "subscription_cycle" && userSub.planId) {
-              const plan = await storage.getSubscriptionPlan(userSub.planId);
-              if (plan) {
-                let expiryDate: Date;
-                if (subData.current_period_end && typeof subData.current_period_end === 'number') {
-                  expiryDate = new Date(subData.current_period_end * 1000);
-                } else {
-                  // Fallback: set expiry to 1 month from now if period_end is missing
-                  expiryDate = new Date();
-                  expiryDate.setMonth(expiryDate.getMonth() + 1);
-                }
-                
-                await creditService.grantCredits(
-                  userSub.userId,
-                  "subscription",
-                  plan.monthlyCredits,
-                  userSub.planId,
-                  expiryDate
-                );
-
-                console.log(`Granted ${plan.monthlyCredits} credits to user ${userSub.userId} for renewal`);
-
-                // Record reseller transaction for recurring subscription
-                const user = await storage.getUser(userSub.userId) as any;
-                if (user?.resellerId) {
-                  const reseller = await storage.getReseller(user.resellerId);
-                  if (reseller && reseller.status === "active") {
-                    // Check if event already processed (idempotency)
-                    const existing = await storage.getResellerTransactionByStripeEventId(event.id);
-                    if (existing) {
-                      console.log(`Event ${event.id} already processed, skipping reseller transaction`);
-                    } else {
-                      const currency = userSub.currency || user.currency || "GBP";
-                      
-                      // Calculate revenue based on currency
-                      let revenueAmount = 0;
-                      if (currency === "GBP") {
-                        revenueAmount = plan.priceGBP;
-                      } else if (currency === "USD") {
-                        revenueAmount = plan.priceUSD;
-                      } else if (currency === "EUR") {
-                        revenueAmount = plan.priceEUR;
-                      }
-
-                      const commissionAmount = Math.round(revenueAmount * (reseller.commissionRate / 100));
-
-                      await storage.createResellerTransaction({
-                        resellerId: reseller.id,
-                        userId: user.id,
-                        type: "subscription_renewal",
-                        amount: revenueAmount,
-                        currency,
-                        commissionAmount,
-                        occurredAt: new Date(),
-                        stripeEventId: event.id,
-                      });
-
-                      console.log(`Recorded reseller renewal transaction for ${reseller.name}: ${revenueAmount} ${currency}, commission: ${commissionAmount}`);
-                    }
-                  }
-                }
-              }
-            }
+          }
             break;
           }
 
@@ -1819,10 +1436,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  app.post("/api/twilio/webhook", async (req, res) => {
+  app.post("/webhook/twilio/sms", async (req, res) => {
     try {
       const { From, Body, MessageSid } = req.body;
-
+      console.log(req.body);
       // Find contact by phone number across all users
       const contact = await storage.getContactByPhone(From);
 
@@ -1891,7 +1508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all messages for current user with enriched contact/job data
   app.get("/api/messages/history", requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user!.id;
       const messages = await storage.getAllMessagesForUser(userId);
       
       // Enrich messages with contact and job information
@@ -2038,84 +1655,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/create-bundle-checkout-session", requireAuth, async (req: any, res) => {
-    try {
-      if (!stripe) {
-        return res.status(500).json({ message: "Stripe not configured" });
-      }
-
-      const userId = req.user.id;
-      const { bundleId, currency } = req.body;
-      
-      const bundle = await storage.getSmsBundle(bundleId);
-      if (!bundle) {
-        return res.status(404).json({ message: "Bundle not found" });
-      }
-
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      // Map currency to Stripe format
-      const stripeCurrency = currency.toLowerCase();
-      
-      // Get price based on currency
-      let priceAmount = bundle.priceGBP;
-      if (currency === "USD") {
-        priceAmount = bundle.priceUSD;
-      } else if (currency === "EUR") {
-        priceAmount = bundle.priceEUR;
-      }
-
-      // Get or create Stripe customer
-      let customerId = user.stripeCustomerId;
-      if (!customerId) {
-        const customer = await stripe.customers.create({
-          email: user.email,
-          metadata: {
-            userId: user.id,
-          },
-        });
-        customerId = customer.id;
-        await storage.updateUser(userId, { stripeCustomerId: customerId } as any);
-      }
-
-      // Create one-time payment checkout session
-      const session = await stripe.checkout.sessions.create({
-        customer: customerId,
-        mode: "payment",
-        payment_method_types: ["card"],
-        line_items: [
-          {
-            price_data: {
-              currency: stripeCurrency,
-              product_data: {
-                name: bundle.name,
-                description: `${bundle.credits.toLocaleString()} SMS credits`,
-              },
-              unit_amount: priceAmount,
-            },
-            quantity: 1,
-          },
-        ],
-        success_url: `${req.headers.origin}/billing?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${req.headers.origin}/billing`,
-        metadata: {
-          userId,
-          bundleId,
-          credits: bundle.credits.toString(),
-          type: "bundle_purchase",
-        },
-      });
-
-      res.json({ url: session.url });
-    } catch (error: any) {
-      console.error("Bundle checkout session error:", error);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
   app.post("/api/create-checkout-session", async (req, res) => {
     try {
       if (!stripe) {
@@ -2176,7 +1715,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         });
         customerId = customer.id;
-        await storage.updateUser(userId, { stripeCustomerId: customerId } as any);
+        // Update user with Stripe customer ID (subscription ID will be set later)
+        await storage.updateUserStripeInfo(userId, customerId, user.stripeSubscriptionId || "");
       }
 
       // Create checkout session
@@ -2209,9 +1749,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
 
-      // Update user's currency preference
-      await storage.updateUser(userId, { currency } as any);
-
+      // Currency will be stored in subscription when webhook fires
+      
       res.json({ url: session.url });
     } catch (error: any) {
       console.error("Checkout session error:", error);
@@ -2219,262 +1758,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Process checkout session and grant credits immediately
   app.post("/api/stripe/process-session", requireAuth, async (req: any, res) => {
     try {
       if (!stripe) {
         return res.status(500).json({ message: "Stripe not configured" });
       }
-
       const { sessionId } = req.body;
+      const userId = req.user.id;
       if (!sessionId) {
-        return res.status(400).json({ message: "Session ID is required" });
+        return res.status(400).json({ message: "Session ID required" });
       }
-
+      // Retrieve the session from Stripe
       const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-      if (session.status !== "complete") {
-        return res.status(400).json({ message: "Checkout session is not complete" });
-      }
-
-      const userId = session.metadata?.userId;
-      if (!userId || userId !== req.user.id) {
+      
+      // Verify this session belongs to this user
+      if (session.metadata?.userId !== userId) {
         return res.status(403).json({ message: "Unauthorized" });
       }
-
+      // Check if already processed (idempotency)
+      const existingSubscription = await storage.getSubscription(userId);
+      if (existingSubscription?.stripeSubscriptionId === session.subscription) {
+        return res.json({ 
+          message: "Already processed",
+          creditsGranted: 0 
+        });
+      }
       let creditsGranted = 0;
-      let purchaseType = "";
-
       if (session.mode === "subscription" && session.subscription) {
-        purchaseType = "subscription";
         const subscriptionId = session.subscription as string;
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const planId = session.metadata?.planId;
-
+        const currency = session.metadata?.currency || "GBP";
         if (!planId) {
-          return res.status(400).json({ message: "No planId in session metadata" });
+          return res.status(400).json({ message: "Plan ID not found" });
         }
-
         const plan = await storage.getSubscriptionPlan(planId);
         if (!plan) {
-          return res.status(404).json({ message: `Plan ${planId} not found` });
+          return res.status(404).json({ message: "Plan not found" });
         }
-
-        const currency = session.metadata?.currency || "GBP";
-
+        // Get subscription details from Stripe
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        
+        // Get period dates from the first subscription item
+        const subscriptionItem = subscription.items?.data?.[0];
+        if (!subscriptionItem) {
+          return res.status(400).json({ message: "No subscription items found" });
+        }
+        
+        const currentPeriodStart = new Date(subscriptionItem.current_period_start * 1000);
+        const currentPeriodEnd = new Date(subscriptionItem.current_period_end * 1000);
+        
+        // Verify the dates are valid
+        if (isNaN(currentPeriodStart.getTime()) || isNaN(currentPeriodEnd.getTime())) {
+          return res.status(400).json({ message: "Invalid subscription timestamps" });
+        }
+        
+        // Update user's subscription
         const userSub = await storage.getSubscription(userId);
         if (userSub) {
-          const subData = subscription as any;
-          const updateData: any = {
+          await storage.updateSubscription(userId, {
             planId,
             currency,
             stripeSubscriptionId: subscriptionId,
             status: subscription.status,
-          };
-
-          if (subData.current_period_start && typeof subData.current_period_start === 'number') {
-            updateData.currentPeriodStart = new Date(subData.current_period_start * 1000);
-          }
-          if (subData.current_period_end && typeof subData.current_period_end === 'number') {
-            updateData.currentPeriodEnd = new Date(subData.current_period_end * 1000);
-          }
-
-          await storage.updateSubscription(userId, updateData);
-        }
-
-        const subData = subscription as any;
-        let expiryDate: Date;
-        if (subData.current_period_end && typeof subData.current_period_end === 'number') {
-          expiryDate = new Date(subData.current_period_end * 1000);
-        } else {
-          expiryDate = new Date();
-          expiryDate.setMonth(expiryDate.getMonth() + 1);
+            currentPeriodStart,
+            currentPeriodEnd,
+          });
         }
         
+        // Grant credits immediately
         await creditService.grantCredits(
           userId,
           "subscription",
           plan.monthlyCredits,
           planId,
-          expiryDate
+          currentPeriodEnd
         );
-
         creditsGranted = plan.monthlyCredits;
-        console.log(`Granted ${creditsGranted} credits to user ${userId} for subscription ${planId}`);
-      } else if (session.mode === "payment") {
-        purchaseType = "bundle";
-        const bundleId = session.metadata?.bundleId;
-
-        console.log("Processing bundle purchase:", { bundleId, metadata: session.metadata });
-
-        if (!bundleId) {
-          console.error("No bundleId in session metadata:", session.metadata);
-          return res.status(400).json({ message: "No bundleId in session metadata" });
-        }
-
-        const bundle = await storage.getSmsBundle(bundleId);
-        if (!bundle) {
-          console.error(`Bundle ${bundleId} not found in database`);
-          return res.status(404).json({ message: `Bundle ${bundleId} not found` });
-        }
-
-        console.log(`Found bundle: ${bundle.name}, credits: ${bundle.credits}`);
-
-        const expiryDate = new Date();
-        expiryDate.setFullYear(expiryDate.getFullYear() + 10);
-
-        await creditService.grantCredits(
-          userId,
-          "bundle",
-          bundle.credits,
-          bundleId,
-          expiryDate
-        );
-
-        creditsGranted = bundle.credits;
-        console.log(`Granted ${creditsGranted} credits to user ${userId} for bundle ${bundleId}`);
-      } else {
-        console.error("Unknown session mode:", session.mode, "Session:", JSON.stringify(session, null, 2));
-        return res.status(400).json({ 
-          message: `Unsupported checkout session mode: ${session.mode}. Expected 'subscription' or 'payment'.` 
-        });
+        console.log(`Processed session ${sessionId}: Granted ${creditsGranted} credits to user ${userId}`);
       }
-
-      const successMessage = purchaseType === "bundle" 
-        ? "SMS bundle purchased successfully" 
-        : "Subscription activated successfully";
-
       res.json({ 
-        success: true, 
-        creditsGranted,
-        purchaseType,
-        message: successMessage
+        message: "Session processed successfully",
+        creditsGranted 
       });
     } catch (error: any) {
       console.error("Process session error:", error);
-      res.status(500).json({ message: error.message || "Failed to process session" });
-    }
-  });
-
-  app.post("/api/stripe/create-portal-session", requireAuth, async (req: any, res) => {
-    try {
-      if (!stripe) {
-        return res.status(500).json({ message: "Stripe not configured" });
-      }
-
-      const userId = req.user.id;
-      const user = await storage.getUser(userId);
-      
-      if (!user || !user.stripeCustomerId) {
-        return res.status(404).json({ message: "No Stripe customer found. Please subscribe to a plan first." });
-      }
-
-      const subscription = await storage.getSubscription(userId);
-      if (!subscription || !subscription.stripeSubscriptionId) {
-        return res.status(404).json({ message: "No active subscription found." });
-      }
-
-      const portalSession = await stripe.billingPortal.sessions.create({
-        customer: user.stripeCustomerId,
-        return_url: `${req.headers.origin}/billing`,
-      });
-
-      res.json({ url: portalSession.url });
-    } catch (error: any) {
-      console.error("Create portal session error:", error);
-      res.status(500).json({ message: error.message || "Failed to create portal session" });
-    }
-  });
-
-  app.post("/api/subscription/cancel", requireAuth, async (req: any, res) => {
-    try {
-      if (!stripe) {
-        return res.status(500).json({ message: "Stripe not configured" });
-      }
-
-      const userId = req.user.id;
-      const subscription = await storage.getSubscription(userId);
-      
-      if (!subscription || !subscription.stripeSubscriptionId) {
-        return res.status(404).json({ message: "No active subscription found" });
-      }
-
-      // Cancel the subscription at period end
-      await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-        cancel_at_period_end: true,
-      });
-
-      // Update subscription status in database
-      await storage.updateSubscription(userId, {
-        status: "canceled",
-      });
-
-      res.json({ 
-        success: true, 
-        message: "Subscription will be canceled at the end of the current billing period",
-        cancelAtPeriodEnd: true
-      });
-    } catch (error: any) {
-      console.error("Cancel subscription error:", error);
-      res.status(500).json({ message: error.message || "Failed to cancel subscription" });
-    }
-  });
-
-  // Cancel subscription with reason endpoint
-  app.post("/api/subscription/cancel-with-reason", requireAuth, async (req: any, res) => {
-    try {
-      if (!stripe) {
-        return res.status(500).json({ message: "Stripe not configured" });
-      }
-
-      const userId = req.user.id;
-      const { reason, comments } = req.body;
-      
-      if (!reason) {
-        return res.status(400).json({ message: "Cancellation reason is required" });
-      }
-
-      const user = await storage.getUser(userId);
-      const subscription = await storage.getSubscription(userId);
-      
-      if (!subscription || !subscription.stripeSubscriptionId) {
-        return res.status(404).json({ message: "No active subscription found" });
-      }
-
-      // Cancel the subscription at period end in Stripe
-      await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-        cancel_at_period_end: true,
-      });
-
-      // Update subscription status in database
-      await storage.updateSubscription(userId, {
-        status: "canceled",
-      });
-
-      // Log the cancellation reason as feedback
-      const feedbackMessage = `Subscription Cancellation - Reason: ${reason}`;
-      await storage.createFeedback({
-        message: feedbackMessage,
-        userId: userId,
-      } as any);
-
-      // Send email notification to Nadeem
-      try {
-        if (user) {
-          await sendCancellationNotification(user, reason);
-        }
-      } catch (emailError) {
-        console.error("Failed to send cancellation notification email:", emailError);
-        // Don't fail the cancellation if email fails
-      }
-
-      res.json({ 
-        success: true,
-        message: "Subscription will be canceled at the end of the current billing period. Thank you for your feedback.",
-        cancelAtPeriodEnd: true
-      });
-    } catch (error: any) {
-      console.error("Cancel subscription with reason error:", error);
-      res.status(500).json({ message: error.message || "Failed to cancel subscription" });
+      res.status(500).json({ message: error.message });
     }
   });
 
@@ -2517,66 +1886,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Feedback routes
-  app.post("/api/feedback", requireAuth, async (req: any, res) => {
-    try {
-      const parsed = insertFeedbackSchema.parse(req.body);
-      const feedback = await storage.createFeedback({
-        ...parsed,
-        userId: req.user.id,
-      } as any);
-      res.json(feedback);
-    } catch (error: any) {
-      console.error("Create feedback error:", error);
-      res.status(400).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/admin/feedback", requireAdmin, async (req, res) => {
-    try {
-      const allFeedback = await storage.getAllFeedback();
-      
-      // Join with user information
-      const feedbackWithUsers = await Promise.all(
-        allFeedback.map(async (fb) => {
-          const user = await storage.getUser(fb.userId);
-          return {
-            ...fb,
-            user: user ? {
-              id: user.id,
-              username: user.username,
-              email: user.email,
-              firstName: user.firstName,
-              lastName: user.lastName,
-            } : null,
-          };
-        })
-      );
-      
-      res.json(feedbackWithUsers);
-    } catch (error: any) {
-      console.error("Get all feedback error:", error);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.patch("/api/admin/feedback/:id/status", requireAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { status } = req.body;
-      
-      if (!status || !["new", "reviewed", "implemented"].includes(status)) {
-        return res.status(400).json({ message: "Invalid status. Must be 'new', 'reviewed', or 'implemented'" });
-      }
-      
-      const updatedFeedback = await storage.updateFeedbackStatus(id, status);
-      res.json(updatedFeedback);
-    } catch (error: any) {
-      console.error("Update feedback status error:", error);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
   // Admin routes
   app.get("/api/admin/users", requireAdmin, async (req, res) => {
     try {
@@ -2592,9 +1901,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ]);
 
           // Calculate SMS volume (total messages sent) from credit transactions
-          const smsVolume = creditTransactions
-            .filter(t => t.delta < 0 && t.messageId) // Negative delta means debit
-            .reduce((sum, t) => sum + Math.abs(t.delta), 0);
+        const smsVolume = creditTransactions
+          .filter(t => t.delta < 0 && t.messageId)
+          .reduce((sum, t) => sum + Math.abs(t.delta), 0);
 
           let planName = "Trial";
           let monthlyPayment = 0;
@@ -2604,7 +1913,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Get monthly payment based on subscription currency
             if (plan) {
-              const currency = subscription.currency || user.currency || "GBP";
+              const currency = subscription.currency || "GBP";
               if (currency === "GBP") {
                 monthlyPayment = plan.priceGBP / 100; // Convert from pence to pounds
               } else if (currency === "USD") {
@@ -2894,242 +2203,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedBundle);
     } catch (error: any) {
       console.error("Admin update bundle pricing error:", error);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Reseller Admin Routes
-  app.get("/api/admin/resellers", requireAdmin, async (req, res) => {
-    try {
-      const resellers = await storage.getAllResellers();
-      
-      // Get transaction counts and revenue for each reseller
-      const resellersWithStats = await Promise.all(
-        resellers.map(async (reseller) => {
-          const transactions = await storage.getResellerTransactions(reseller.id);
-          const totalRevenue = transactions.reduce((sum, t) => sum + t.amount, 0);
-          const totalCommission = transactions.reduce((sum, t) => sum + t.commissionAmount, 0);
-          
-          // Count users referred by this reseller
-          const allUsers = await storage.getAllUsers() as any[];
-          const referredUsers = allUsers.filter((u: any) => u.resellerId === reseller.id);
-          
-          return {
-            ...reseller,
-            referredUsersCount: referredUsers.length,
-            totalRevenue,
-            totalCommission,
-            transactionCount: transactions.length,
-          };
-        })
-      );
-      
-      res.json(resellersWithStats);
-    } catch (error: any) {
-      console.error("Admin get resellers error:", error);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.post("/api/admin/resellers", requireAdmin, async (req, res) => {
-    try {
-      const { name, email, commissionRate } = req.body;
-
-      if (!name || !email) {
-        return res.status(400).json({ message: "Name and email are required" });
-      }
-
-      if (commissionRate !== undefined && (commissionRate < 0 || commissionRate > 100)) {
-        return res.status(400).json({ message: "Commission rate must be between 0 and 100" });
-      }
-
-      // Generate unique referral code
-      const referralCode = `${name.toLowerCase().replace(/[^a-z0-9]/g, '')}-${Math.random().toString(36).substring(2, 8)}`;
-
-      const reseller = await storage.createReseller({
-        name,
-        email,
-        commissionRate: commissionRate || 20,
-        referralCode,
-        status: "active",
-      });
-
-      res.json(reseller);
-    } catch (error: any) {
-      console.error("Admin create reseller error:", error);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.patch("/api/admin/resellers/:resellerId", requireAdmin, async (req, res) => {
-    try {
-      const { resellerId } = req.params;
-      const { name, email, commissionRate, status } = req.body;
-
-      const updates: any = {};
-      if (name !== undefined) updates.name = name;
-      if (email !== undefined) updates.email = email;
-      if (status !== undefined) updates.status = status;
-      if (commissionRate !== undefined) {
-        if (commissionRate < 0 || commissionRate > 100) {
-          return res.status(400).json({ message: "Commission rate must be between 0 and 100" });
-        }
-        updates.commissionRate = commissionRate;
-      }
-
-      const updatedReseller = await storage.updateReseller(resellerId, updates);
-      res.json(updatedReseller);
-    } catch (error: any) {
-      console.error("Admin update reseller error:", error);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.delete("/api/admin/resellers/:resellerId", requireAdmin, async (req, res) => {
-    try {
-      const { resellerId } = req.params;
-      
-      // Check if reseller has any transactions
-      const transactions = await storage.getResellerTransactions(resellerId);
-      if (transactions.length > 0) {
-        return res.status(400).json({ 
-          message: "Cannot delete reseller with existing transactions. Please disable the reseller instead." 
-        });
-      }
-      
-      // Check if reseller has any payouts
-      const payouts = await storage.getResellerPayouts(resellerId);
-      if (payouts.length > 0) {
-        return res.status(400).json({ 
-          message: "Cannot delete reseller with payout history. Please disable the reseller instead." 
-        });
-      }
-      
-      // Check if reseller has any referred users
-      const allUsers = await storage.getAllUsers() as any[];
-      const referredUsers = allUsers.filter((u: any) => u.resellerId === resellerId);
-      if (referredUsers.length > 0) {
-        return res.status(400).json({ 
-          message: `Cannot delete reseller with ${referredUsers.length} referred users. Please disable the reseller instead.` 
-        });
-      }
-      
-      await storage.deleteReseller(resellerId);
-      res.json({ success: true, message: "Reseller deleted" });
-    } catch (error: any) {
-      console.error("Admin delete reseller error:", error);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Get reseller revenue report for a specific month
-  app.get("/api/admin/resellers/:resellerId/report", requireAdmin, async (req, res) => {
-    try {
-      const { resellerId } = req.params;
-      const { month, year } = req.query;
-
-      if (!month || !year) {
-        return res.status(400).json({ message: "Month and year are required" });
-      }
-
-      const monthNum = parseInt(month as string);
-      const yearNum = parseInt(year as string);
-
-      if (monthNum < 1 || monthNum > 12 || yearNum < 2000 || yearNum > 2100) {
-        return res.status(400).json({ message: "Invalid month or year" });
-      }
-
-      // Get reseller details
-      const reseller = await storage.getReseller(resellerId);
-      if (!reseller) {
-        return res.status(404).json({ message: "Reseller not found" });
-      }
-
-      // Get transactions for the month
-      const transactions = await storage.getResellerTransactionsByMonth(resellerId, monthNum, yearNum);
-
-      // Calculate revenue breakdown
-      const newRevenue = transactions
-        .filter(t => t.type === "subscription_start")
-        .reduce((sum, t) => sum + t.amount, 0);
-
-      const recurringRevenue = transactions
-        .filter(t => t.type === "subscription_renewal")
-        .reduce((sum, t) => sum + t.amount, 0);
-
-      const bundleRevenue = transactions
-        .filter(t => t.type === "bundle_purchase")
-        .reduce((sum, t) => sum + t.amount, 0);
-
-      const totalRevenue = newRevenue + recurringRevenue + bundleRevenue;
-      const totalCommission = transactions.reduce((sum, t) => sum + t.commissionAmount, 0);
-
-      // Get or create payout record
-      let payout = await storage.getResellerPayout(resellerId, monthNum, yearNum);
-      if (!payout) {
-        payout = await storage.createOrUpdateResellerPayout({
-          resellerId,
-          month: monthNum,
-          year: yearNum,
-          newRevenue,
-          recurringRevenue,
-          totalRevenue,
-          commissionAmount: totalCommission,
-          currency: "GBP", // Default currency
-          transactionCount: transactions.length,
-          status: "pending",
-          lastCalculatedAt: new Date(),
-        });
-      } else {
-        // Update payout with latest calculations
-        payout = await storage.createOrUpdateResellerPayout({
-          resellerId,
-          month: monthNum,
-          year: yearNum,
-          newRevenue,
-          recurringRevenue,
-          totalRevenue,
-          commissionAmount: totalCommission,
-          currency: payout.currency,
-          transactionCount: transactions.length,
-          status: payout.status,
-          lastCalculatedAt: new Date(),
-        });
-      }
-
-      res.json({
-        reseller: {
-          id: reseller.id,
-          name: reseller.name,
-          email: reseller.email,
-          commissionRate: reseller.commissionRate,
-        },
-        period: {
-          month: monthNum,
-          year: yearNum,
-        },
-        revenue: {
-          new: newRevenue,
-          recurring: recurringRevenue,
-          bundles: bundleRevenue,
-          total: totalRevenue,
-        },
-        commission: {
-          amount: totalCommission,
-          rate: reseller.commissionRate,
-        },
-        transactions: transactions.map(t => ({
-          id: t.id,
-          type: t.type,
-          amount: t.amount,
-          currency: t.currency,
-          commissionAmount: t.commissionAmount,
-          occurredAt: t.occurredAt,
-        })),
-        payout,
-      });
-    } catch (error: any) {
-      console.error("Admin get reseller report error:", error);
       res.status(500).json({ message: error.message });
     }
   });

@@ -18,6 +18,17 @@ export const adminUsers = pgTable("admin_users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const resellers = pgTable("resellers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  commissionRate: integer("commission_rate").notNull().default(20), // Commission percentage (e.g., 20 = 20%)
+  referralCode: text("referral_code").notNull().unique(), // Unique code for signup URL
+  status: text("status").notNull().default("active"), // "active", "suspended"
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(), // Now used for company name
@@ -36,7 +47,8 @@ export const users = pgTable("users", {
   isActive: boolean("is_active").notNull().default(true), // For soft delete
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
-  referralCode: text("referral_code"), // Optional referral code that brought this user
+  resellerId: varchar("reseller_id").references(() => resellers.id, { onDelete: 'set null' }), // Which reseller referred this user
+  referralCode: text("referral_code"), // Optional referral code that brought this user (deprecated - use resellerId)
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -199,6 +211,46 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const resellerTransactions = pgTable("reseller_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  resellerId: varchar("reseller_id").notNull().references(() => resellers.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  stripeEventId: text("stripe_event_id").unique(), // Stripe event ID for idempotency
+  stripeInvoiceId: text("stripe_invoice_id"), // For tracking specific Stripe invoices
+  stripeCheckoutId: text("stripe_checkout_id"), // For initial purchases
+  type: text("type").notNull(), // "subscription_start", "subscription_renewal", "bundle_purchase"
+  amount: integer("amount").notNull(), // Amount in smallest currency unit (cents/pence)
+  currency: text("currency").notNull(), // GBP, USD, EUR
+  commissionAmount: integer("commission_amount").notNull(), // Commission earned in smallest currency unit
+  occurredAt: timestamp("occurred_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const resellerPayouts = pgTable("reseller_payouts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  resellerId: varchar("reseller_id").notNull().references(() => resellers.id, { onDelete: 'cascade' }),
+  month: integer("month").notNull(), // 1-12
+  year: integer("year").notNull(), // e.g., 2025
+  newRevenue: integer("new_revenue").notNull().default(0), // From new signups
+  recurringRevenue: integer("recurring_revenue").notNull().default(0), // From renewals
+  totalRevenue: integer("total_revenue").notNull().default(0), // Total revenue
+  commissionAmount: integer("commission_amount").notNull().default(0), // Total commission owed
+  currency: text("currency").notNull().default("GBP"), // Primary currency for report
+  transactionCount: integer("transaction_count").notNull().default(0), // Number of transactions
+  status: text("status").notNull().default("pending"), // "pending", "paid"
+  lastCalculatedAt: timestamp("last_calculated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const feedback = pgTable("feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("new"), // "new", "reviewed", "implemented"
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({
   id: true,
   createdAt: true,
@@ -211,6 +263,9 @@ export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   countryCode: true,
   mobileNumber: true,
+  firstName: true,
+  lastName: true,
+  resellerId: true,
 });
 
 export const insertContactSchema = createInsertSchema(contacts).omit({
@@ -334,3 +389,39 @@ export const insertAdminUserSchema = createInsertSchema(adminUsers).omit({
 
 export type InsertAdminUser = z.infer<typeof insertAdminUserSchema>;
 export type AdminUser = typeof adminUsers.$inferSelect;
+
+export const insertResellerSchema = createInsertSchema(resellers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertReseller = z.infer<typeof insertResellerSchema>;
+export type Reseller = typeof resellers.$inferSelect;
+
+export const insertResellerTransactionSchema = createInsertSchema(resellerTransactions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertResellerTransaction = z.infer<typeof insertResellerTransactionSchema>;
+export type ResellerTransaction = typeof resellerTransactions.$inferSelect;
+
+export const insertResellerPayoutSchema = createInsertSchema(resellerPayouts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertResellerPayout = z.infer<typeof insertResellerPayoutSchema>;
+export type ResellerPayout = typeof resellerPayouts.$inferSelect;
+
+export const insertFeedbackSchema = createInsertSchema(feedback).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  status: true,
+});
+
+export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
+export type Feedback = typeof feedback.$inferSelect;

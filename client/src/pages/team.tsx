@@ -58,7 +58,7 @@ export default function TeamPage() {
       setInviteData({ firstName: "", lastName: "", email: "", teamRole: "member" });
       toast({
         title: "Team member invited",
-        description: `Temporary password: ${data.temporaryPassword}`,
+        description: `An invitation email with login credentials has been sent to ${inviteData.email}`,
       });
     },
     onError: (error: any) => {

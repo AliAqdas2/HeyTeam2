@@ -43,11 +43,14 @@ export default function SendMessage() {
     mutationFn: (data: { jobId: string; templateId: string; contactIds: string[] }) =>
       apiRequest("POST", "/api/send-message", data),
     onSuccess: () => {
+      // Invalidate queries to refresh roster and contacts immediately
       queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs", params?.id, "roster"] });
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       toast({
         title: "Messages Sent",
-        description: `Successfully sent messages to ${selectedContacts.length} contact(s)`,
+        description: `Successfully sent messages to ${selectedContacts.length} contact(s). Contacts are now in "No Reply" status until they respond.`,
       });
       setLocation(`/jobs/${params?.id}/roster`);
     },

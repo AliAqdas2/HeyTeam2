@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppHeader } from "@/components/app-header";
+import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import Dashboard from "@/pages/dashboard";
 import JobForm from "@/pages/job-form";
 import RosterBoard from "@/pages/roster-board";
@@ -71,6 +72,7 @@ function Router() {
       <Route path="/billing" component={Billing} />
       <Route path="/messages" component={MessageHistory} />
       <Route path="/profile" component={ProfilePage} />
+      <Route path="/admin" component={AdminDashboard} />
       <Route path="/admin/admin.aspx" component={AdminDashboard} />
       <Route path="/team" component={TeamPage} />
       <Route component={NotFound} />
@@ -86,6 +88,7 @@ function AppContent() {
     <div className="min-h-screen bg-background">
       {!isPublicRoute && <AppHeader />}
       <main className={isPublicRoute ? "" : "mx-auto max-w-screen-2xl px-6 py-8"}>
+        {!isPublicRoute && <PageBreadcrumbs />}
         <Router />
       </main>
     </div>

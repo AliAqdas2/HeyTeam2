@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { DbStorage } from "./db-storage";
 
 async function seed() {
@@ -14,13 +15,8 @@ async function seed() {
 
   console.log(`Created user: ${user.username}`);
 
-  // Update subscription to Pro plan
-  await storage.updateSubscription(user.id, {
-    plan: "pro",
-    messageCredits: 500,
-  });
-
-  console.log("Updated subscription to Pro plan");
+  // Note: User already has a trial subscription created automatically
+  console.log("User has trial subscription with 10 credits");
 
   // Create sample contacts
   const contacts = await Promise.all([
@@ -30,6 +26,7 @@ async function seed() {
       phone: "+15551234567",
       email: "john.doe@example.com",
       notes: "Lead carpenter",
+      status: "free",
     }),
     storage.createContact(user.id, {
       firstName: "Jane",
@@ -37,6 +34,7 @@ async function seed() {
       phone: "+15559876543",
       email: "jane.smith@example.com",
       notes: "Electrician",
+      status: "free",
     }),
     storage.createContact(user.id, {
       firstName: "Bob",
@@ -44,6 +42,7 @@ async function seed() {
       phone: "+15555551234",
       email: "bob.j@example.com",
       notes: null,
+      status: "free",
     }),
   ]);
 

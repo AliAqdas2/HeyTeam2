@@ -1,14 +1,12 @@
-import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
 const { Pool } = pkg;
-import { eq, and, desc, sql } from "drizzle-orm";
-import { constructE164Phone, normalizePhoneNumber } from "./lib/phone-utils";
+import { eq, and, desc, or, sql } from "drizzle-orm";
 import {
   organizations, users, contacts, jobs, templates, campaigns, messages,
   availability, subscriptions,
   passwordResetTokens, subscriptionPlans, smsBundles, creditGrants, creditTransactions,
-  adminUsers, resellers, resellerTransactions, resellerPayouts, feedback,
+  adminUsers,
   type Organization, type InsertOrganization,
   type User, type InsertUser,
   type Contact, type InsertContact,
@@ -24,10 +22,6 @@ import {
   type CreditGrant, type InsertCreditGrant,
   type CreditTransaction, type InsertCreditTransaction,
   type AdminUser, type InsertAdminUser,
-  type Reseller, type InsertReseller,
-  type ResellerTransaction, type InsertResellerTransaction,
-  type ResellerPayout, type InsertResellerPayout,
-  type Feedback, type InsertFeedback,
 } from "@shared/schema";
 import type { IStorage } from "./storage";
 
@@ -114,22 +108,18 @@ export class DbStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    let userData: any = insertUser;
+    // Create a new organization for the user
+    const org = await this.createOrganization({
+      name: `${insertUser.username}'s Organization`,
+    });
     
-    // If no organizationId provided, create a new organization for the user
-    if (!(insertUser as any).organizationId) {
-      const org = await this.createOrganization({
-        name: `${insertUser.username}'s Organization`,
-      });
-      
-      userData = {
-        ...insertUser,
-        organizationId: org.id,
-        teamRole: (insertUser as any).teamRole || "owner",
-      };
-    }
+    // Create user with organization and default team role
+    const userData = {
+      ...insertUser,
+      organizationId: org.id,
+      teamRole: "owner",
+    };
     
-    // Create user
     const result = await this.db.insert(users).values(userData).returning();
     const user = result[0];
     
@@ -232,28 +222,58 @@ export class DbStorage implements IStorage {
   }
 
   async getContactByPhone(phone: string): Promise<Contact | undefined> {
-    // First try exact match (in case phone is stored as full E.164)
+    // Twilio sends full E.164 format (e.g., +441234567890)
+    // We need to match against our separate countryCode + phone fields
+    
+    // First try exact match on phone field (for backward compatibility)
     let result = await this.db.select().from(contacts).where(eq(contacts.phone, phone));
-    if (result[0]) {
+    if (result.length > 0) {
       return result[0];
     }
     
-    // Normalize the incoming phone number (from Twilio, it's already E.164 format)
-    const normalizedIncoming = normalizePhoneNumber(phone);
+    // If no exact match, fetch all contacts and match using constructE164Phone logic
+    // Strip all non-digit characters from incoming number for comparison
+    const cleanedIncoming = phone.replace(/\D/g, '');
     
-    // Get all contacts and reconstruct their E.164 numbers using the same logic as when sending
+    if (!cleanedIncoming || cleanedIncoming.length < 10) {
+      return undefined;
+    }
+    
+    // Get all contacts to check against
     const allContacts = await this.db.select().from(contacts);
     
+    // Country dial code mapping
+    const COUNTRY_DIAL_CODES: Record<string, string> = {
+      "US": "+1", "CA": "+1", "GB": "+44", "AU": "+61", "NZ": "+64",
+      "IE": "+353", "IN": "+91", "SG": "+65", "MX": "+52", "DE": "+49",
+      "FR": "+33", "ES": "+34", "IT": "+39",
+    };
+    
+    // Helper to construct E164 from contact's countryCode + phone
+    const constructE164 = (countryCode: string, contactPhone: string): string => {
+      let cleaned = contactPhone.replace(/\D/g, '');
+      
+      // If phone starts with +, handle it
+      if (contactPhone.trim().startsWith('+')) {
+        return '+' + cleaned;
+      }
+      
+      // Remove leading 0 for most countries (except Italy)
+      if (cleaned.startsWith('0') && countryCode !== 'IT') {
+        cleaned = cleaned.substring(1);
+      }
+      
+      // Prepend country dial code
+      const dialCode = COUNTRY_DIAL_CODES[countryCode] || "+1";
+      return dialCode + cleaned;
+    };
+    
+    // Find matching contact
     for (const contact of allContacts) {
-      if (!contact.countryCode || !contact.phone) continue;
+      const constructedE164 = constructE164(contact.countryCode, contact.phone);
+      const cleanedConstructed = constructedE164.replace(/\D/g, '');
       
-      // Reconstruct E.164 format using the same function used when sending messages
-      // This ensures consistency between sending and receiving
-      const reconstructedE164 = constructE164Phone(contact.countryCode, contact.phone);
-      const normalizedReconstructed = normalizePhoneNumber(reconstructedE164);
-      
-      // Compare normalized numbers
-      if (normalizedIncoming === normalizedReconstructed) {
+      if (cleanedConstructed === cleanedIncoming) {
         return contact;
       }
     }
@@ -320,23 +340,8 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateTemplate(id: string, updates: Partial<InsertTemplate>): Promise<Template> {
-    const result = await this.db
-      .update(templates)
-      .set(updates)
-      .where(eq(templates.id, id))
-      .returning();
-    return result[0];
-  }
-
   async deleteTemplate(id: string): Promise<void> {
     await this.db.delete(templates).where(eq(templates.id, id));
-  }
-
-  async bulkCreateContacts(userId: string, insertContacts: InsertContact[]): Promise<Contact[]> {
-    const contactsWithUserId = insertContacts.map(c => ({ ...c, userId }));
-    const result = await this.db.insert(contacts).values(contactsWithUserId).returning();
-    return result;
   }
 
   async createCampaign(userId: string, campaign: InsertCampaign): Promise<Campaign> {
@@ -550,13 +555,13 @@ export class DbStorage implements IStorage {
 
     // Use database transaction for atomicity
     return await this.db.transaction(async (tx) => {
-      // Get all active grants sorted by expiry (earliest first)
-      // Transaction isolation provides the necessary locking
+      // Get all active grants sorted by expiry (earliest first), with FOR UPDATE lock
       const now = new Date();
       const allGrants = await tx
         .select()
         .from(creditGrants)
-        .where(eq(creditGrants.userId, userId));
+        .where(eq(creditGrants.userId, userId))
+        .for("update");
 
       const activeGrants = allGrants
         .filter(g => g.creditsRemaining > 0)
@@ -643,11 +648,12 @@ export class DbStorage implements IStorage {
           throw new Error(`Transaction ${txId} is not a consumption`);
         }
 
-        // Get the grant (transaction isolation provides locking)
+        // Get the grant and lock it
         const grantResult = await tx
           .select()
           .from(creditGrants)
-          .where(eq(creditGrants.id, originalTx.grantId));
+          .where(eq(creditGrants.id, originalTx.grantId))
+          .for("update");
 
         const grant = grantResult[0];
 
@@ -683,134 +689,5 @@ export class DbStorage implements IStorage {
 
       return refundTransactions;
     });
-  }
-
-  // Reseller methods
-  async getAllResellers(): Promise<Reseller[]> {
-    return await this.db.select().from(resellers);
-  }
-
-  async getReseller(id: string): Promise<Reseller | undefined> {
-    const result = await this.db.select().from(resellers).where(eq(resellers.id, id));
-    return result[0];
-  }
-
-  async getResellerByReferralCode(code: string): Promise<Reseller | undefined> {
-    const result = await this.db.select().from(resellers).where(eq(resellers.referralCode, code));
-    return result[0];
-  }
-
-  async createReseller(reseller: InsertReseller): Promise<Reseller> {
-    const result = await this.db.insert(resellers).values(reseller).returning();
-    return result[0];
-  }
-
-  async updateReseller(id: string, updates: Partial<InsertReseller>): Promise<Reseller> {
-    const result = await this.db
-      .update(resellers)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(resellers.id, id))
-      .returning();
-    return result[0];
-  }
-
-  async deleteReseller(id: string): Promise<void> {
-    await this.db.delete(resellers).where(eq(resellers.id, id));
-  }
-
-  async createResellerTransaction(transaction: InsertResellerTransaction): Promise<ResellerTransaction> {
-    const result = await this.db.insert(resellerTransactions).values(transaction).returning();
-    return result[0];
-  }
-
-  async getResellerTransactions(resellerId: string): Promise<ResellerTransaction[]> {
-    return await this.db
-      .select()
-      .from(resellerTransactions)
-      .where(eq(resellerTransactions.resellerId, resellerId))
-      .orderBy(desc(resellerTransactions.occurredAt));
-  }
-
-  async getResellerTransactionsByMonth(resellerId: string, month: number, year: number): Promise<ResellerTransaction[]> {
-    const { sql } = await import("drizzle-orm");
-    return await this.db
-      .select()
-      .from(resellerTransactions)
-      .where(
-        and(
-          eq(resellerTransactions.resellerId, resellerId),
-          sql`EXTRACT(MONTH FROM ${resellerTransactions.occurredAt}) = ${month}`,
-          sql`EXTRACT(YEAR FROM ${resellerTransactions.occurredAt}) = ${year}`
-        )
-      );
-  }
-
-  async getResellerTransactionByStripeEventId(eventId: string): Promise<ResellerTransaction | undefined> {
-    const result = await this.db
-      .select()
-      .from(resellerTransactions)
-      .where(eq(resellerTransactions.stripeEventId, eventId));
-    return result[0];
-  }
-
-  async getResellerPayout(resellerId: string, month: number, year: number): Promise<ResellerPayout | undefined> {
-    const result = await this.db
-      .select()
-      .from(resellerPayouts)
-      .where(
-        and(
-          eq(resellerPayouts.resellerId, resellerId),
-          eq(resellerPayouts.month, month),
-          eq(resellerPayouts.year, year)
-        )
-      );
-    return result[0];
-  }
-
-  async getResellerPayouts(resellerId: string): Promise<ResellerPayout[]> {
-    return await this.db
-      .select()
-      .from(resellerPayouts)
-      .where(eq(resellerPayouts.resellerId, resellerId))
-      .orderBy(desc(resellerPayouts.year), desc(resellerPayouts.month));
-  }
-
-  async createOrUpdateResellerPayout(payout: InsertResellerPayout): Promise<ResellerPayout> {
-    const existing = await this.getResellerPayout(payout.resellerId, payout.month, payout.year);
-    
-    if (existing) {
-      const result = await this.db
-        .update(resellerPayouts)
-        .set({ ...payout, updatedAt: new Date() })
-        .where(eq(resellerPayouts.id, existing.id))
-        .returning();
-      return result[0];
-    } else {
-      const result = await this.db.insert(resellerPayouts).values(payout).returning();
-      return result[0];
-    }
-  }
-
-  // Feedback methods
-  async createFeedback(insertFeedback: InsertFeedback): Promise<Feedback> {
-    const result = await this.db.insert(feedback).values({ 
-      ...insertFeedback, 
-      userId: (insertFeedback as any).userId, 
-      status: "new" 
-    }).returning();
-    return result[0];
-  }
-
-  async getAllFeedback(): Promise<Feedback[]> {
-    return await this.db.select().from(feedback).orderBy(desc(feedback.createdAt));
-  }
-
-  async updateFeedbackStatus(id: string, status: string): Promise<Feedback> {
-    const result = await this.db
-      .update(feedback)
-      .set({ status })
-      .where(eq(feedback.id, id))
-      .returning();
-    return result[0];
   }
 }
