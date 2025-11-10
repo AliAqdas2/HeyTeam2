@@ -48,8 +48,7 @@ export default function Dashboard() {
     const query = searchQuery.toLowerCase();
     return jobList.filter(job => 
       job.name.toLowerCase().includes(query) ||
-      job.location?.toLowerCase().includes(query) ||
-      job.description?.toLowerCase().includes(query)
+      job.location?.toLowerCase().includes(query)
     );
   };
 
@@ -91,34 +90,54 @@ export default function Dashboard() {
         </div>
       )}
 
-      {subscription && (
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <Link href="/billing">
-                  <a data-testid="link-current-plan" className="flex flex-col hover-elevate active-elevate-2 rounded-md p-2 -m-2">
-                    <span className="text-sm text-muted-foreground">Current Plan</span>
-                    <span className="text-lg font-semibold capitalize" data-testid="text-plan-name">{subscription.plan}</span>
-                  </a>
-                </Link>
-                <div className="h-8 w-px bg-border" />
-                <Link href="/billing">
-                  <a data-testid="link-sms-credits" className="flex flex-col hover-elevate active-elevate-2 rounded-md p-2 -m-2">
-                    <span className="text-sm text-muted-foreground">SMS Credits</span>
-                    <span className="text-lg font-semibold" data-testid="text-sms-credits">{subscription.messageCredits}</span>
-                  </a>
-                </Link>
-              </div>
-              <Link href="/billing">
-                <a data-testid="link-view-billing">
-                  <Button variant="outline" size="sm">Manage Billing</Button>
-                </a>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+<Card>
+  <CardContent className="p-6">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex items-center gap-4">
+        <Link href="/billing">
+          <a
+            data-testid="link-current-plan"
+            className="flex flex-col hover-elevate active-elevate-2 rounded-md p-2 -m-2"
+          >
+            <span className="text-sm text-muted-foreground">Current Plan</span>
+            <span
+              className="text-lg font-semibold capitalize"
+              data-testid="text-plan-name"
+            >
+              {subscription?.plan ?? "N/A"}
+            </span>
+          </a>
+        </Link>
+
+        <div className="h-8 w-px bg-border" />
+
+        <Link href="/billing">
+          <a
+            data-testid="link-sms-credits"
+            className="flex flex-col hover-elevate active-elevate-2 rounded-md p-2 -m-2"
+          >
+            <span className="text-sm text-muted-foreground">SMS Credits</span>
+            <span
+              className="text-lg font-semibold"
+              data-testid="text-sms-credits"
+            >
+              {subscription?.messageCredits ?? 0}
+            </span>
+          </a>
+        </Link>
+      </div>
+
+      <Link href="/billing">
+        <a data-testid="link-view-billing">
+          <Button variant="outline" size="sm">
+            Manage Billing
+          </Button>
+        </a>
+      </Link>
+    </div>
+  </CardContent>
+</Card>
+
 
       {upcomingJobs.length === 0 && pastJobs.length === 0 ? (
         <Card>

@@ -14,10 +14,10 @@ const router = Router();
 // Register
 router.post("/register", async (req: Request, res: Response) => {
   try {
-    const { username, email, password, countryCode, mobileNumber, referralCode } = req.body;
+    const { username, firstName, lastName, email, password, countryCode, mobileNumber, referralCode } = req.body;
     
     // Validate input
-    const { username: validUsername, email: validEmail, password: validPassword, countryCode: validCountryCode, mobileNumber: validMobileNumber } = insertUserSchema.parse({ username, email, password, countryCode, mobileNumber });
+    const { username: validUsername, firstName: validFirstName, lastName: validLastName, email: validEmail, password: validPassword, countryCode: validCountryCode, mobileNumber: validMobileNumber } = insertUserSchema.parse({ username, firstName, lastName, email, password, countryCode, mobileNumber });
 
     // Check if user already exists (username is now company name)
     const existingUser = await storage.getUserByUsername(validUsername);
@@ -50,6 +50,8 @@ router.post("/register", async (req: Request, res: Response) => {
     // Create user with mobile number and reseller ID
     const user = await storage.createUser({
       username: validUsername, // Company name
+      firstName: validFirstName,
+      lastName: validLastName,
       email: validEmail,
       countryCode: validCountryCode,
       mobileNumber: validMobileNumber,
@@ -74,14 +76,7 @@ router.post("/register", async (req: Request, res: Response) => {
     const endTime = new Date(tomorrow);
     endTime.setHours(17, 0, 0, 0);
 
-    await storage.createJob(user.id, {
-      name: "Job A",
-      location: "Sample Location",
-      startTime: tomorrow,
-      endTime: endTime,
-      requiredHeadcount: 5,
-      notes: "This is a sample job to help you get started. You can edit or delete it.",
-    });
+
 
     // Create preset SMS templates for new users
     const defaultTemplates = [
@@ -113,7 +108,7 @@ router.post("/register", async (req: Request, res: Response) => {
     ];
 
     for (const template of defaultTemplates) {
-      await storage.createTemplate(user.id, template);
+      await storage.createTemplate(user.organizationId??"", user.id, template);
     }
 
     console.log(`New registration: ${username} - Granted 10 trial SMS credits`);

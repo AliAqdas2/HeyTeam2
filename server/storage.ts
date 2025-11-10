@@ -18,6 +18,7 @@ import {
   type ResellerTransaction, type InsertResellerTransaction,
   type ResellerPayout, type InsertResellerPayout,
   type Feedback, type InsertFeedback,
+  type PlatformSettings, type InsertPlatformSettings,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -31,8 +32,10 @@ export interface IStorage {
   
   // Admin user methods
   getAllAdminUsers(): Promise<AdminUser[]>;
+  getAdminUser(id: string): Promise<AdminUser | undefined>;
   getAdminUserByEmail(email: string): Promise<AdminUser | undefined>;
   createAdminUser(adminUser: InsertAdminUser): Promise<AdminUser>;
+  updateAdminUser(id: string, updates: Partial<InsertAdminUser>): Promise<AdminUser>;
   deleteAdminUser(id: string): Promise<void>;
 
   // User methods
@@ -51,43 +54,43 @@ export interface IStorage {
   getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
   deletePasswordResetToken(token: string): Promise<void>;
 
-  getContacts(userId: string): Promise<Contact[]>;
-  getContact(id: string): Promise<Contact | undefined>;
+  getContacts(organizationId: string): Promise<Contact[]>;
+  getContact(id: string, organizationId: string): Promise<Contact | undefined>;
   getContactByRosterToken(token: string): Promise<Contact | undefined>;
-  getContactByPhone(phone: string): Promise<Contact | undefined>;
-  createContact(userId: string, contact: InsertContact): Promise<Contact>;
-  bulkCreateContacts(userId: string, contacts: InsertContact[]): Promise<Contact[]>;
+  getContactByPhone(phone: string, organizationId?: string): Promise<Contact | undefined>;
+  createContact(organizationId: string, userId: string, contact: InsertContact): Promise<Contact>;
+  bulkCreateContacts(organizationId: string, userId: string, contacts: InsertContact[]): Promise<Contact[]>;
   updateContact(id: string, updates: Partial<InsertContact>): Promise<Contact>;
   deleteContact(id: string): Promise<void>;
 
-  getJobs(userId: string): Promise<Job[]>;
-  getJob(id: string): Promise<Job | undefined>;
-  createJob(userId: string, job: InsertJob): Promise<Job>;
+  getJobs(organizationId: string): Promise<Job[]>;
+  getJob(id: string, organizationId: string): Promise<Job | undefined>;
+  createJob(organizationId: string, userId: string, job: InsertJob): Promise<Job>;
   updateJob(id: string, updates: Partial<InsertJob>): Promise<Job>;
   deleteJob(id: string): Promise<void>;
 
-  getTemplates(userId: string): Promise<Template[]>;
+  getTemplates(organizationId: string): Promise<Template[]>;
   getTemplate(id: string): Promise<Template | undefined>;
-  createTemplate(userId: string, template: InsertTemplate): Promise<Template>;
+  createTemplate(organizationId: string, userId: string, template: InsertTemplate): Promise<Template>;
   updateTemplate(id: string, updates: Partial<InsertTemplate>): Promise<Template>;
   deleteTemplate(id: string): Promise<void>;
 
-  createCampaign(userId: string, campaign: InsertCampaign): Promise<Campaign>;
-  getCampaignsForJob(jobId: string): Promise<Campaign[]>;
+  createCampaign(organizationId: string, userId: string, campaign: InsertCampaign): Promise<Campaign>;
+  getCampaignsForJob(jobId: string, organizationId: string): Promise<Campaign[]>;
 
-  getMessages(contactId: string): Promise<Message[]>;
-  getMessagesForJob(jobId: string): Promise<Message[]>;
-  getAllMessagesForUser(userId: string): Promise<Message[]>;
-  createMessage(userId: string, message: InsertMessage): Promise<Message>;
+  getMessages(contactId: string, organizationId: string): Promise<Message[]>;
+  getMessagesForJob(jobId: string, organizationId: string): Promise<Message[]>;
+  getAllMessagesForUser(organizationId: string): Promise<Message[]>;
+  createMessage(organizationId: string, userId: string, message: InsertMessage): Promise<Message>;
   updateMessageStatus(id: string, status: string): Promise<Message>;
 
-  getAvailability(jobId: string): Promise<Availability[]>;
-  getAllAvailability(userId: string): Promise<Availability[]>;
-  getAvailabilityByContact(contactId: string): Promise<Availability[]>;
-  getAvailabilityForContact(jobId: string, contactId: string): Promise<Availability | undefined>;
-  getConfirmedContactsForJob(jobId: string): Promise<Contact[]>;
-  getCurrentJobForContact(contactId: string): Promise<Job | undefined>;
-  createAvailability(availability: InsertAvailability): Promise<Availability>;
+  getAvailability(jobId: string, organizationId: string): Promise<Availability[]>;
+  getAllAvailability(organizationId: string): Promise<Availability[]>;
+  getAvailabilityByContact(contactId: string, organizationId: string): Promise<Availability[]>;
+  getAvailabilityForContact(jobId: string, contactId: string, organizationId: string): Promise<Availability | undefined>;
+  getConfirmedContactsForJob(jobId: string, organizationId: string): Promise<Contact[]>;
+  getCurrentJobForContact(contactId: string, organizationId: string): Promise<Job | undefined>;
+  createAvailability(organizationId: string, availability: InsertAvailability): Promise<Availability>;
   updateAvailability(id: string, updates: Partial<InsertAvailability>): Promise<Availability>;
 
   getSubscription(userId: string): Promise<Subscription | undefined>;
@@ -129,6 +132,10 @@ export interface IStorage {
     reason: string
   ): Promise<CreditTransaction[]>;
   
+  // Platform settings
+  getPlatformSettings(): Promise<PlatformSettings>;
+  updatePlatformSettings(updates: Partial<InsertPlatformSettings>): Promise<PlatformSettings>;
+  
   // Reseller methods
   getAllResellers(): Promise<Reseller[]>;
   getReseller(id: string): Promise<Reseller | undefined>;
@@ -149,7 +156,7 @@ export interface IStorage {
   createOrUpdateResellerPayout(payout: InsertResellerPayout): Promise<ResellerPayout>;
 
   // Feedback methods
-  createFeedback(feedback: InsertFeedback): Promise<Feedback>;
+  createFeedback(organizationId: string, userId: string, feedback: InsertFeedback): Promise<Feedback>;
   getAllFeedback(): Promise<Feedback[]>;
   updateFeedbackStatus(id: string, status: string): Promise<Feedback>;
 }
@@ -174,6 +181,12 @@ export class MemStorage implements IStorage {
   private resellerTransactions: Map<string, ResellerTransaction> = new Map();
   private resellerPayouts: Map<string, ResellerPayout> = new Map();
   private feedbacks: Map<string, Feedback> = new Map();
+  private platformSettingsData: PlatformSettings = {
+    id: randomUUID(),
+    feedbackEmail: "Feedback@HeyTeam.ai",
+    supportEmail: "support@heyteam.ai",
+    updatedAt: new Date(),
+  };
   
   // Simple mutex for atomic credit operations
   private creditLocks: Map<string, Promise<any>> = new Map();
@@ -216,6 +229,10 @@ export class MemStorage implements IStorage {
     return Array.from(this.adminUsers.values());
   }
 
+  async getAdminUser(id: string): Promise<AdminUser | undefined> {
+    return this.adminUsers.get(id);
+  }
+
   async getAdminUserByEmail(email: string): Promise<AdminUser | undefined> {
     return Array.from(this.adminUsers.values()).find((admin) => admin.email === email);
   }
@@ -225,6 +242,19 @@ export class MemStorage implements IStorage {
     const adminUser: AdminUser = { ...insertAdminUser, id, createdAt: new Date() };
     this.adminUsers.set(id, adminUser);
     return adminUser;
+  }
+
+  async updateAdminUser(id: string, updates: Partial<InsertAdminUser>): Promise<AdminUser> {
+    const admin = this.adminUsers.get(id);
+    if (!admin) {
+      throw new Error("Admin user not found");
+    }
+    const updated: AdminUser = {
+      ...admin,
+      ...updates,
+    };
+    this.adminUsers.set(id, updated);
+    return updated;
   }
 
   async deleteAdminUser(id: string): Promise<void> {
@@ -359,28 +389,30 @@ export class MemStorage implements IStorage {
     return user;
   }
 
-  async getContacts(userId: string): Promise<Contact[]> {
-    return Array.from(this.contacts.values()).filter((c) => c.userId === userId);
+  async getContacts(organizationId: string): Promise<Contact[]> {
+    return Array.from(this.contacts.values()).filter((c) => c.organizationId === organizationId);
   }
 
-  async getContact(id: string): Promise<Contact | undefined> {
-    return this.contacts.get(id);
+  async getContact(id: string, organizationId: string): Promise<Contact | undefined> {
+    const contact = this.contacts.get(id);
+    return contact && contact.organizationId === organizationId ? contact : undefined;
   }
 
   async getContactByRosterToken(token: string): Promise<Contact | undefined> {
     return Array.from(this.contacts.values()).find((c) => c.rosterToken === token);
   }
 
-  async getContactByPhone(phone: string): Promise<Contact | undefined> {
-    return Array.from(this.contacts.values()).find((c) => c.phone === phone);
+  async getContactByPhone(phone: string, organizationId: string): Promise<Contact | undefined> {
+    return Array.from(this.contacts.values()).find((c) => c.phone === phone && c.organizationId === organizationId);
   }
 
-  async createContact(userId: string, insertContact: InsertContact): Promise<Contact> {
+  async createContact(organizationId: string, userId: string, insertContact: InsertContact): Promise<Contact> {
     const id = randomUUID();
     const now = new Date();
     const contact: Contact = {
       ...insertContact,
       id,
+      organizationId,
       userId,
       countryCode: insertContact.countryCode ?? "US",
       email: insertContact.email ?? null,
@@ -689,6 +721,9 @@ export class MemStorage implements IStorage {
       ...insertPlan,
       id,
       description: insertPlan.description ?? null,
+      targetAudience: insertPlan.targetAudience ?? "",
+      featureBullets: insertPlan.featureBullets ?? "",
+      useCase: insertPlan.useCase ?? "",
       supportLevel: insertPlan.supportLevel ?? "email",
       customTemplates: insertPlan.customTemplates ?? false,
       autoFollowUp: insertPlan.autoFollowUp ?? false,
@@ -736,9 +771,14 @@ export class MemStorage implements IStorage {
 
   async createCreditGrant(userId: string, insertGrant: InsertCreditGrant): Promise<CreditGrant> {
     const id = randomUUID();
+    const organizationId = insertGrant.organizationId ?? this.users.get(userId)?.organizationId;
+    if (!organizationId) {
+      throw new Error("User not associated with an organization");
+    }
     const grant: CreditGrant = {
       ...insertGrant,
       id,
+      organizationId,
       userId,
       sourceRef: insertGrant.sourceRef ?? null,
       creditsConsumed: insertGrant.creditsConsumed ?? 0,
@@ -763,10 +803,15 @@ export class MemStorage implements IStorage {
 
   async createCreditTransaction(userId: string, insertTransaction: InsertCreditTransaction): Promise<CreditTransaction> {
     const id = randomUUID();
+    const organizationId = insertTransaction.organizationId ?? this.users.get(userId)?.organizationId;
+    if (!organizationId) {
+      throw new Error("User not associated with an organization");
+    }
     const transaction: CreditTransaction = {
       ...insertTransaction,
       id,
       userId,
+      organizationId,
       messageId: insertTransaction.messageId ?? null,
       createdAt: new Date(),
     };
@@ -851,6 +896,7 @@ export class MemStorage implements IStorage {
         const transaction: CreditTransaction = {
           id: txId,
           userId,
+          organizationId: grant.organizationId,
           grantId: grant.id,
           messageId,
           delta: -toConsume,
@@ -910,6 +956,7 @@ export class MemStorage implements IStorage {
         const refundTx: CreditTransaction = {
           id: refundTxId,
           userId,
+          organizationId: grant.organizationId,
           grantId: grant.id,
           messageId: originalTx.messageId,
           delta: refundAmount,
@@ -923,6 +970,19 @@ export class MemStorage implements IStorage {
 
       return refundTransactions;
     });
+  }
+
+  async getPlatformSettings(): Promise<PlatformSettings> {
+    return this.platformSettingsData;
+  }
+
+  async updatePlatformSettings(updates: Partial<InsertPlatformSettings>): Promise<PlatformSettings> {
+    this.platformSettingsData = {
+      ...this.platformSettingsData,
+      ...updates,
+      updatedAt: new Date(),
+    };
+    return this.platformSettingsData;
   }
 
   async updateSubscriptionPlanPricing(id: string, prices: { priceGBP: number; priceUSD: number; priceEUR: number }): Promise<SubscriptionPlan> {

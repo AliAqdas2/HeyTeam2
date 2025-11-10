@@ -10,9 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Check, X } from "lucide-react";
 import { COUNTRIES } from "@/lib/constants";
-import illustrationImage from "@assets/HeyTeam Login Page Animation_1761223879122.gif";
 import logoImage from "@assets/heyteam 1_1760877824955.png";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -25,6 +24,8 @@ const loginSchema = z.object({
 
 const registerSchema = z.object({
   username: z.string().min(2, "Company name must be at least 2 characters"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Valid email is required"),
   countryCode: z.string().min(1, "Country is required"),
   mobileNumber: z.string().min(5, "Mobile number is required"),
@@ -52,6 +53,8 @@ export default function AuthPage() {
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showPwaBanner, setShowPwaBanner] = useState(false);
 
   const lastEmail = typeof window !== "undefined" ? localStorage.getItem(LAST_EMAIL_KEY) || "" : "";
 
@@ -77,6 +80,8 @@ export default function AuthPage() {
     resolver: zodResolver(registerSchema),
     defaultValues: {
       username: "",
+      firstName: "",
+      lastName: "",
       email: "",
       countryCode: "GB",
       mobileNumber: "",
@@ -91,6 +96,91 @@ export default function AuthPage() {
       email: "",
     },
   });
+
+  const isMobileDevice = () => {
+    if (typeof navigator === "undefined") return false;
+    return /android|iphone|ipad|ipod|windows phone/i.test(navigator.userAgent.toLowerCase());
+  };
+
+  const isPwaInstalled = () => {
+    if (typeof window === "undefined") return false;
+    const mediaQuery = typeof window.matchMedia === "function" ? window.matchMedia("(display-mode: standalone)") : null;
+    const standaloneMatch = mediaQuery?.matches;
+    const navigatorStandalone = (window.navigator as any)?.standalone;
+    return Boolean(standaloneMatch || navigatorStandalone);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleBeforeInstallPrompt = (event: any) => {
+      event.preventDefault();
+      setDeferredPrompt(event);
+      if (activeTab === "login" && isMobileDevice() && !isPwaInstalled()) {
+        setShowPwaBanner(true);
+      }
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "login" && isMobileDevice() && !isPwaInstalled()) {
+      setShowPwaBanner(true);
+    } else if (activeTab !== "login") {
+      setShowPwaBanner(false);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (isPwaInstalled()) {
+      setShowPwaBanner(false);
+      return;
+    }
+
+    const mediaQuery = typeof window.matchMedia === "function" ? window.matchMedia("(display-mode: standalone)") : null;
+    if (!mediaQuery) return;
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      if (event.matches) {
+        setShowPwaBanner(false);
+      }
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+    }
+
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener("change", handleChange);
+      } else {
+        mediaQuery.removeListener(handleChange);
+      }
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    try {
+      deferredPrompt.prompt();
+      const choiceResult = await deferredPrompt.userChoice;
+      if (choiceResult?.outcome === "accepted") {
+        setShowPwaBanner(false);
+      }
+    } catch (error) {
+      console.error("PWA install prompt failed", error);
+    } finally {
+      setDeferredPrompt(null);
+    }
+  };
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginFormData) => {
@@ -107,7 +197,7 @@ export default function AuthPage() {
     onError: (error: any) => {
       toast({
         title: "Login failed",
-        description: error.message || "Invalid credentials",
+        description: "Invalid credentials",
         variant: "destructive",
       });
     },
@@ -181,8 +271,17 @@ export default function AuthPage() {
                   One click to go<br />all digital.
                 </h1>
               </div>
-              <div className="flex items-center justify-center">
-                <img src={illustrationImage} alt="Digital Management" className="w-full max-w-md rounded-lg" />
+              <div className="space-y-4 text-base">
+                {[ 
+                  "Fill jobs fast without spending hours on phone calls or WhatsApp messages.",
+                  "Keep your team organised with automatic rota updates and instant SMS replies.",
+                  "See everything in one place — jobs, availability, and confirmations on your dashboard."
+                ].map((item) => (
+                  <div key={item} className="flex items-start gap-3">
+                    <Check className="mt-1 h-5 w-5 text-white" />
+                    <span>{item}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -263,8 +362,17 @@ export default function AuthPage() {
                 Stop calling around.<br />Just HeyTeam it.
               </h1>
             </div>
-            <div className="flex items-center justify-center">
-              <img src={illustrationImage} alt="Digital Management" className="w-full max-w-md rounded-lg" />
+            <div className="space-y-4 text-base">
+              {[ 
+                "Fill jobs fast without spending hours on phone calls or WhatsApp messages.",
+                "Keep your team organised with automatic rota updates and instant SMS replies.",
+                "See everything in one place — jobs, availability, and confirmations on your dashboard."
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-3">
+                  <Check className="mt-1 h-5 w-5 text-white" />
+                  <span>{item}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -284,6 +392,47 @@ export default function AuthPage() {
                   <h2 className="text-3xl font-bold" data-testid="heading-login">Sign in</h2>
                   <p className="text-muted-foreground">Welcome back! Please enter your details</p>
                 </div>
+
+                {showPwaBanner && (
+                  <div className="relative rounded-xl border border-border bg-muted p-4 text-sm text-foreground transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => setShowPwaBanner(false)}
+                      className="absolute right-3 top-3 text-muted-foreground transition hover:text-foreground"
+                      aria-label="Dismiss PWA install banner"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                    <div className="pr-6 space-y-3">
+                      <div>
+                        <h3 className="text-base font-semibold">Install HeyTeam on your phone</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Add HeyTeam to your home screen for faster access and instant notifications.
+                        </p>
+                      </div>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <p>
+                          <span className="font-semibold">iOS:</span> Tap the <span className="font-semibold">Share</span> button in Safari, then choose <span className="font-semibold">Add to Home Screen</span>.
+                        </p>
+                        <p>
+                          <span className="font-semibold">Android:</span> Tap the browser menu (<span aria-hidden>⋮</span>) and select <span className="font-semibold">Install app</span> or <span className="font-semibold">Add to Home screen</span>.
+                        </p>
+                      </div>
+                      {deferredPrompt && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={handleInstallClick}
+                          className="text-xs"
+                          data-testid="button-install-pwa"
+                        >
+                          Install now
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <Form {...loginForm}>
                   <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-5">
@@ -416,6 +565,46 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={registerForm.control}
+                        name="firstName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>First Name</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="John"
+                                className="h-11"
+                                data-testid="input-register-firstname"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={registerForm.control}
+                        name="lastName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Last Name</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="Doe"
+                                className="h-11"
+                                data-testid="input-register-lastname"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
                     <FormField
                       control={registerForm.control}

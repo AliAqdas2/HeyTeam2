@@ -14,7 +14,6 @@ import Contacts from "@/pages/contacts";
 import Templates from "@/pages/templates";
 import Calendar from "@/pages/calendar";
 import Billing from "@/pages/billing";
-import AdminPage from "@/pages/admin";
 import AdminDashboard from "@/pages/admin-dashboard";
 import TeamPage from "@/pages/team";
 import AuthPage from "@/pages/auth";
@@ -24,43 +23,17 @@ import RosterView from "@/pages/roster-view";
 import MessageHistory from "@/pages/message-history";
 import ProfilePage from "@/pages/profile";
 import NotFound from "@/pages/not-found";
+import AdminLogin from "@/pages/admin-login";
+import AdminChangePassword from "@/pages/admin-change-password";
+import { AdminHeader } from "@/components/admin-header";
 
-function Router() {
-  const [location] = useLocation();
-  const { data: user, isLoading } = useQuery({
-    queryKey: ["/api/auth/me"],
-  });
-
-  // Public routes
-  const isPublicRoute = location === "/auth" || location.startsWith("/reset-password") || location === "/pricing" || location.startsWith("/roster/");
-
-  if (isLoading && !isPublicRoute) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
-  // Redirect to auth if not logged in and trying to access protected route
-  if (!user && !isPublicRoute) {
-    return <Redirect to="/auth" />;
-  }
-
-  // Redirect to jobs if logged in and trying to access auth page
-  if (user && location === "/auth") {
-    return <Redirect to="/jobs" />;
-  }
-
+function UserRouter() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/pricing" component={PricingPage} />
       <Route path="/roster/:token" component={RosterView} />
-      <Route path="/">
-        {() => <Redirect to="/jobs" />}
-      </Route>
       <Route path="/jobs/new" component={JobForm} />
       <Route path="/jobs/:id/edit" component={JobForm} />
       <Route path="/jobs/:id/roster" component={RosterBoard} />
@@ -72,27 +45,110 @@ function Router() {
       <Route path="/billing" component={Billing} />
       <Route path="/messages" component={MessageHistory} />
       <Route path="/profile" component={ProfilePage} />
-      <Route path="/admin" component={AdminDashboard} />
-      <Route path="/admin/admin.aspx" component={AdminDashboard} />
       <Route path="/team" component={TeamPage} />
+      <Route path="/">
+        {() => <Redirect to="/jobs" />}
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-function AppContent() {
+function UserApp() {
   const [location] = useLocation();
+  const { data: user, isLoading } = useQuery({
+    queryKey: ["/api/auth/me"],
+  });
+
   const isPublicRoute = location === "/auth" || location.startsWith("/reset-password") || location === "/pricing" || location.startsWith("/roster/");
+
+  if (isLoading && !isPublicRoute) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user && !isPublicRoute) {
+    return <Redirect to="/auth" />;
+  }
+
+  if (user && location === "/auth") {
+    return <Redirect to="/jobs" />;
+  }
 
   return (
     <div className="min-h-screen bg-background">
       {!isPublicRoute && <AppHeader />}
       <main className={isPublicRoute ? "" : "mx-auto max-w-screen-2xl px-6 py-8"}>
         {!isPublicRoute && <PageBreadcrumbs />}
-        <Router />
+        <UserRouter />
       </main>
     </div>
   );
+}
+
+function AdminRouter() {
+  return (
+    <Switch>
+      <Route path="/admin/login" component={AdminLogin} />
+      <Route path="/admin/dashboard" component={AdminDashboard} />
+      <Route path="/admin/change-password" component={AdminChangePassword} />
+      <Route path="/admin">
+        {() => <Redirect to="/admin/dashboard" />}
+      </Route>
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function AdminApp() {
+  const [location] = useLocation();
+  const isPublicRoute = location === "/admin/login";
+  const { data, isLoading } = useQuery<{ admin: { id: string; name: string | null; email: string } }>({
+    queryKey: ["/api/admin/auth/me"],
+    retry: false,
+  });
+
+  const admin = data?.admin ?? null;
+
+  if (!isPublicRoute && isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-muted-foreground">Checking admin access...</div>
+      </div>
+    );
+  }
+
+  if (!isPublicRoute && !admin) {
+    return <Redirect to="/admin/login" />;
+  }
+
+  if (admin && isPublicRoute) {
+    return <Redirect to="/admin/dashboard" />;
+  }
+
+  const containerClass = isPublicRoute
+    ? "px-4 py-12"
+    : "mx-auto max-w-screen-2xl px-6 py-8";
+
+  return (
+    <div className="min-h-screen bg-background">
+      {!isPublicRoute && admin && <AdminHeader admin={admin} />}
+      <main className={containerClass}>
+        <AdminRouter />
+      </main>
+    </div>
+  );
+}
+
+function AppContent() {
+  const [location] = useLocation();
+  if (location.startsWith("/admin")) {
+    return <AdminApp />;
+  }
+  return <UserApp />;
 }
 
 function App() {

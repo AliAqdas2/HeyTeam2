@@ -26,6 +26,9 @@ async function seedPlans() {
     const [starterPlan] = await db.insert(subscriptionPlans).values({
       name: "Starter",
       description: "Perfect for small teams getting started with workforce coordination",
+      targetAudience: "Small teams or solo operators",
+      featureBullets: "500 SMS per month (rolls over for 1 month)\nUpload contacts & send instant job alerts\nCreate and reuse custom SMS templates\nAuto follow-up messages for faster confirmations\nCentral job calendar for scheduling\nContractors can view their rota instantly via a shared link\nEmail support",
+      useCase: "Perfect for independent trades or small crews who want to simplify coordination.",
       priceGBP: 2900, // £29.00
       priceUSD: 3700, // $37.00
       priceEUR: 3400, // €34.00
@@ -44,6 +47,9 @@ async function seedPlans() {
     const [teamPlan] = await db.insert(subscriptionPlans).values({
       name: "Team",
       description: "For growing teams needing advanced features and more messages",
+      targetAudience: "Growing teams and busy schedulers",
+      featureBullets: "3,000 SMS per month (rolls over for 1 month)\nAll Starter features, plus:\nMulti-manager access for shared scheduling\nPriority support\nTemplate library for recurring jobs\nAdvanced central job calendar\nContractors can view and confirm their rota online",
+      useCase: "Ideal for field service teams managing multiple jobs or shifts per day.",
       priceGBP: 7900, // £79.00
       priceUSD: 10000, // $100.00
       priceEUR: 9200, // €92.00
@@ -62,6 +68,9 @@ async function seedPlans() {
     const [businessPlan] = await db.insert(subscriptionPlans).values({
       name: "Business",
       description: "Complete solution with dedicated support and advanced AI features",
+      targetAudience: "Larger teams needing visibility, insights, and control",
+      featureBullets: "10,000 SMS per month (rolls over for 1 month)\nAll Team features, plus:\nDedicated account support\nAI-powered insights on team availability and response times\nDedicated phone number for inbound/outbound SMS\nEnhanced analytics dashboard for management\nContractors can access live rota and shift updates via secure link",
+      useCase: "Perfect for multi-location or franchise operations managing large, mobile teams.",
       priceGBP: 19900, // £199.00
       priceUSD: 25200, // $252.00
       priceEUR: 23200, // €232.00

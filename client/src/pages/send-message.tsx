@@ -40,17 +40,22 @@ export default function SendMessage() {
   });
 
   const sendMutation = useMutation({
-    mutationFn: (data: { jobId: string; templateId: string; contactIds: string[] }) =>
-      apiRequest("POST", "/api/send-message", data),
-    onSuccess: () => {
+    mutationFn: async (data: { jobId: string; templateId: string; contactIds: string[] }) => {
+      const res = await apiRequest("POST", "/api/send-message", data);
+      return await res.json();
+    },
+    onSuccess: (data: any) => {
       // Invalidate queries to refresh roster and contacts immediately
       queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/jobs", params?.id, "roster"] });
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       toast({
-        title: "Messages Sent",
-        description: `Successfully sent messages to ${selectedContacts.length} contact(s). Contacts are now in "No Reply" status until they respond.`,
+        title: "Messages queued",
+        description:
+          data?.totalQueued != null
+            ? `Optimised batches of ${Math.min(5, data.totalQueued)} will begin sending immediately. Additional batches (up to ${data.totalQueued} contacts) follow every 2 minutes until the job is filled or credits run out.`
+            : `Messages will be sent in smart batches of 5 every 2 minutes until the job is filled or credits run out.`,
       });
       setLocation(`/jobs/${params?.id}/roster`);
     },
@@ -228,6 +233,9 @@ export default function SendMessage() {
                   <span className="text-muted-foreground">Estimated Credits:</span>
                   <span className="font-medium">{selectedContacts.length}</span>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Messages are dispatched in batches of 5 every 2 minutes, prioritising local and available contractors until the job is filled.
+                </p>
               </div>
 
               <Button

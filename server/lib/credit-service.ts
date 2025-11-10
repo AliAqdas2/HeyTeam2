@@ -1,5 +1,5 @@
 import type { IStorage } from "../storage";
-import type { InsertCreditGrant, InsertCreditTransaction } from "@shared/schema";
+import type { InsertCreditGrant } from "@shared/schema";
 
 export class CreditService {
   constructor(private storage: IStorage) {}
@@ -14,8 +14,10 @@ export class CreditService {
     sourceRef: string | null = null,
     expiresAt: Date | null = null
   ) {
+    const organizationId = await this.getUserOrganizationId(userId);
     const grant: InsertCreditGrant = {
       userId,
+      organizationId,
       sourceType,
       sourceRef,
       creditsGranted,
@@ -110,5 +112,13 @@ export class CreditService {
     }
 
     return breakdown;
+  }
+
+  private async getUserOrganizationId(userId: string): Promise<string> {
+    const user = await this.storage.getUser(userId);
+    if (!user?.organizationId) {
+      throw new Error("User not associated with an organization");
+    }
+    return user.organizationId;
   }
 }

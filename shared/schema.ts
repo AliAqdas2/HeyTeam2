@@ -54,7 +54,8 @@ export const users = pgTable("users", {
 
 export const contacts = pgTable("contacts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // Keep for audit trail and created_by
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   countryCode: text("country_code").notNull().default("US"),
@@ -78,7 +79,8 @@ export const contacts = pgTable("contacts", {
 
 export const jobs = pgTable("jobs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // Keep for audit trail and created_by
   name: text("name").notNull(),
   location: text("location").notNull(),
   startTime: timestamp("start_time").notNull(),
@@ -91,7 +93,8 @@ export const jobs = pgTable("jobs", {
 
 export const templates = pgTable("templates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // Keep for audit trail and created_by
   name: text("name").notNull(),
   content: text("content").notNull(),
   type: text("type").notNull().default("standard"),
@@ -101,7 +104,8 @@ export const templates = pgTable("templates", {
 
 export const campaigns = pgTable("campaigns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // Keep for audit trail and created_by
   jobId: varchar("job_id").notNull().references(() => jobs.id, { onDelete: 'cascade' }),
   templateId: varchar("template_id").notNull().references(() => templates.id),
   sentAt: timestamp("sent_at").notNull().defaultNow(),
@@ -109,7 +113,8 @@ export const campaigns = pgTable("campaigns", {
 
 export const messages = pgTable("messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // Keep for audit trail and created_by
   contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: 'cascade' }),
   jobId: varchar("job_id").references(() => jobs.id, { onDelete: 'set null' }),
   campaignId: varchar("campaign_id").references(() => campaigns.id, { onDelete: 'set null' }),
@@ -134,6 +139,9 @@ export const subscriptionPlans = pgTable("subscription_plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description"),
+  targetAudience: text("target_audience").notNull().default(""),
+  featureBullets: text("feature_bullets").notNull().default(""),
+  useCase: text("use_case").notNull().default(""),
   monthlyCredits: integer("monthly_credits").notNull(), // SMS messages included
   supportLevel: text("support_level").notNull().default("email"), // email, priority, dedicated
   customTemplates: boolean("custom_templates").notNull().default(false),
@@ -169,7 +177,8 @@ export const smsBundles = pgTable("sms_bundles", {
 
 export const creditGrants = pgTable("credit_grants", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // Keep for audit trail
   sourceType: text("source_type").notNull(),
   sourceRef: text("source_ref"),
   creditsGranted: integer("credits_granted").notNull(),
@@ -181,7 +190,8 @@ export const creditGrants = pgTable("credit_grants", {
 
 export const creditTransactions = pgTable("credit_transactions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // Keep for audit trail
   grantId: varchar("grant_id").notNull().references(() => creditGrants.id, { onDelete: 'cascade' }),
   messageId: varchar("message_id").references(() => messages.id, { onDelete: 'set null' }),
   delta: integer("delta").notNull(),
@@ -191,7 +201,8 @@ export const creditTransactions = pgTable("credit_transactions", {
 
 export const subscriptions = pgTable("subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // Keep for audit trail and billing contact
   planId: varchar("plan_id").references(() => subscriptionPlans.id),
   status: text("status").notNull().default("trial"),
   currency: text("currency").notNull().default("GBP"), // GBP, USD, EUR
@@ -245,10 +256,18 @@ export const resellerPayouts = pgTable("reseller_payouts", {
 
 export const feedback = pgTable("feedback", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // Keep for audit trail
   message: text("message").notNull(),
   status: text("status").notNull().default("new"), // "new", "reviewed", "implemented"
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const platformSettings = pgTable("platform_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  feedbackEmail: text("feedback_email").notNull().default('Feedback@HeyTeam.ai'),
+  supportEmail: text("support_email").notNull().default('support@heyteam.ai'),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({
@@ -271,6 +290,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export const insertContactSchema = createInsertSchema(contacts).omit({
   id: true,
   userId: true,
+  organizationId: true, // Will be set automatically from user's organization
   createdAt: true,
   updatedAt: true,
 }).extend({
@@ -280,6 +300,7 @@ export const insertContactSchema = createInsertSchema(contacts).omit({
 export const insertJobSchema = createInsertSchema(jobs).omit({
   id: true,
   userId: true,
+  organizationId: true, // Will be set automatically from user's organization
   createdAt: true,
   updatedAt: true,
 });
@@ -287,18 +308,21 @@ export const insertJobSchema = createInsertSchema(jobs).omit({
 export const insertTemplateSchema = createInsertSchema(templates).omit({
   id: true,
   userId: true,
+  organizationId: true, // Will be set automatically from user's organization
   createdAt: true,
 });
 
 export const insertCampaignSchema = createInsertSchema(campaigns).omit({
   id: true,
   userId: true,
+  organizationId: true, // Will be set automatically from user's organization
   sentAt: true,
 });
 
 export const insertMessageSchema = createInsertSchema(messages).omit({
   id: true,
   userId: true,
+  organizationId: true, // Will be set automatically from user's organization
   createdAt: true,
   updatedAt: true,
 });
@@ -331,8 +355,17 @@ export const insertCreditTransactionSchema = createInsertSchema(creditTransactio
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
   id: true,
   userId: true,
+  organizationId: true, // Will be set automatically from user's organization
   createdAt: true,
   updatedAt: true,
+});
+
+export const insertPlatformSettingsSchema = createInsertSchema(platformSettings).omit({
+  id: true,
+  updatedAt: true,
+}).extend({
+  feedbackEmail: z.string().email(),
+  supportEmail: z.string().email(),
 });
 
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
@@ -373,6 +406,9 @@ export type CreditTransaction = typeof creditTransactions.$inferSelect;
 
 export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
 export type Subscription = typeof subscriptions.$inferSelect;
+
+export type InsertPlatformSettings = z.infer<typeof insertPlatformSettingsSchema>;
+export type PlatformSettings = typeof platformSettings.$inferSelect;
 
 export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({
   id: true,
@@ -419,6 +455,7 @@ export type ResellerPayout = typeof resellerPayouts.$inferSelect;
 export const insertFeedbackSchema = createInsertSchema(feedback).omit({
   id: true,
   userId: true,
+  organizationId: true, // Will be set automatically from user's organization
   createdAt: true,
   status: true,
 });

@@ -234,6 +234,99 @@ export async function sendTeamMessageNotification(
   }
 }
 
+interface FeedbackNotificationContext {
+  message: string;
+  user: {
+    email: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    username?: string | null;
+  };
+  organizationName: string | null;
+}
+
+export async function sendFeedbackNotificationEmail(
+  to: string,
+  context: FeedbackNotificationContext
+) {
+  try {
+    const { client, fromEmail } = getResendClient();
+
+    const displayName = [context.user.firstName, context.user.lastName]
+      .filter(Boolean)
+      .join(" ")
+      || context.user.username
+      || context.user.email;
+
+    const escapedDisplayName = escapeHtml(displayName);
+    const escapedEmail = escapeHtml(context.user.email);
+    const escapedOrganization = context.organizationName ? escapeHtml(context.organizationName) : null;
+    const escapedMessage = escapeHtml(context.message).replace(/\n/g, "<br />");
+
+    await client.emails.send({
+      from: fromEmail,
+      to,
+      subject: `New HeyTeam Feedback from ${escapedDisplayName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #111827; background: #f9fafb; padding: 0; margin: 0; }
+              .container { max-width: 640px; margin: 0 auto; padding: 32px 24px; }
+              .card { background: #ffffff; border-radius: 12px; padding: 32px; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08); }
+              .header { border-bottom: 1px solid #e5e7eb; padding-bottom: 16px; margin-bottom: 24px; }
+              .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+              .meta-item { padding: 12px 16px; background: #f3f4f6; border-radius: 8px; }
+              .meta-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 4px; }
+              .message-box { background: #0f172a; color: #f8fafc; padding: 24px; border-radius: 12px; }
+              .message-box p { margin: 0; white-space: normal; }
+              .footer { margin-top: 24px; font-size: 12px; color: #6b7280; text-align: center; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="card">
+                <div class="header">
+                  <h2 style="margin: 0; font-size: 22px; color: #111827;">New Feedback Received</h2>
+                </div>
+                <div class="meta">
+                  <div class="meta-item">
+                    <span class="meta-label">Submitted By</span>
+                    <span>${escapedDisplayName}</span>
+                  </div>
+                  <div class="meta-item">
+                    <span class="meta-label">Email Address</span>
+                    <span>${escapedEmail}</span>
+                  </div>
+                  ${escapedOrganization ? `
+                    <div class="meta-item">
+                      <span class="meta-label">Organization</span>
+                      <span>${escapedOrganization}</span>
+                    </div>
+                  ` : ""}
+                </div>
+                <div class="message-box">
+                  <p>${escapedMessage}</p>
+                </div>
+              </div>
+              <div class="footer">
+                <p>© ${new Date().getFullYear()} HeyTeam. Feedback notification.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    console.log(`Feedback notification email sent to ${to}`);
+  } catch (error) {
+    console.error('Failed to send feedback notification email:', error);
+    throw error;
+  }
+}
+
 export async function sendCancellationNotification(userInfo: any, reason: string) {
   try {
     const { client, fromEmail } = getResendClient();

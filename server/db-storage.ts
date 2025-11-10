@@ -8,7 +8,7 @@ import {
   organizations, users, contacts, jobs, templates, campaigns, messages,
   availability, subscriptions,
   passwordResetTokens, subscriptionPlans, smsBundles, creditGrants, creditTransactions,
-  adminUsers, resellers, resellerTransactions, resellerPayouts, feedback,
+  adminUsers, resellers, resellerTransactions, resellerPayouts, feedback, platformSettings,
   type Organization, type InsertOrganization,
   type User, type InsertUser,
   type Contact, type InsertContact,
@@ -28,6 +28,7 @@ import {
   type ResellerTransaction, type InsertResellerTransaction,
   type ResellerPayout, type InsertResellerPayout,
   type Feedback, type InsertFeedback,
+  type PlatformSettings, type InsertPlatformSettings,
 } from "@shared/schema";
 import type { IStorage } from "./storage";
 
@@ -80,6 +81,11 @@ export class DbStorage implements IStorage {
     return await this.db.select().from(adminUsers);
   }
 
+  async getAdminUser(id: string): Promise<AdminUser | undefined> {
+    const result = await this.db.select().from(adminUsers).where(eq(adminUsers.id, id));
+    return result[0];
+  }
+
   async getAdminUserByEmail(email: string): Promise<AdminUser | undefined> {
     const result = await this.db.select().from(adminUsers).where(eq(adminUsers.email, email));
     return result[0];
@@ -87,6 +93,15 @@ export class DbStorage implements IStorage {
 
   async createAdminUser(insertAdminUser: InsertAdminUser): Promise<AdminUser> {
     const result = await this.db.insert(adminUsers).values(insertAdminUser).returning();
+    return result[0];
+  }
+
+  async updateAdminUser(id: string, updates: Partial<InsertAdminUser>): Promise<AdminUser> {
+    const result = await this.db
+      .update(adminUsers)
+      .set(updates)
+      .where(eq(adminUsers.id, id))
+      .returning();
     return result[0];
   }
 
@@ -115,24 +130,31 @@ export class DbStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     let userData: any = insertUser;
-    
+    let organizationIdOverride = (insertUser as any).organizationId as string | undefined;
+
     // If no organizationId provided, create a new organization for the user
-    if (!(insertUser as any).organizationId) {
+    if (!organizationIdOverride) {
       const org = await this.createOrganization({
         name: `${insertUser.username}'s Organization`,
       });
-      
+
+      organizationIdOverride = org.id;
       userData = {
         ...insertUser,
-        organizationId: org.id,
+        organizationId: organizationIdOverride,
         teamRole: (insertUser as any).teamRole || "owner",
       };
     }
-    
+
     // Create user
     const result = await this.db.insert(users).values(userData).returning();
     const user = result[0];
-    
+    const organizationId = user.organizationId;
+
+    if (!organizationId) {
+      throw new Error("User is not associated with an organization");
+    }
+
     // Create trial subscription (30 days)
     const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     await this.createSubscription(user.id, {
@@ -141,11 +163,12 @@ export class DbStorage implements IStorage {
       trialEndsAt,
       currentPeriodStart: null,
       currentPeriodEnd: null,
-      stripeSubscriptionId: null,
+      stripeSubscriptionId: undefined,
     });
-    
+
     // Grant 10 trial credits (expires with trial)
     await this.createCreditGrant(user.id, {
+      organizationId,
       userId: user.id,
       sourceType: "trial",
       sourceRef: null,
@@ -154,7 +177,7 @@ export class DbStorage implements IStorage {
       creditsRemaining: 10,
       expiresAt: trialEndsAt,
     });
-    
+
     return user;
   }
 
@@ -217,12 +240,12 @@ export class DbStorage implements IStorage {
     await this.db.delete(passwordResetTokens).where(eq(passwordResetTokens.token, token));
   }
 
-  async getContacts(userId: string): Promise<Contact[]> {
-    return await this.db.select().from(contacts).where(eq(contacts.userId, userId));
+  async getContacts(organizationId: string): Promise<Contact[]> {
+    return await this.db.select().from(contacts).where(eq(contacts.organizationId, organizationId));
   }
 
-  async getContact(id: string): Promise<Contact | undefined> {
-    const result = await this.db.select().from(contacts).where(eq(contacts.id, id));
+  async getContact(id: string, organizationId: string): Promise<Contact | undefined> {
+    const result = await this.db.select().from(contacts).where(and(eq(contacts.id, id), eq(contacts.organizationId, organizationId)));
     return result[0];
   }
 
@@ -231,9 +254,9 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async getContactByPhone(phone: string): Promise<Contact | undefined> {
+  async getContactByPhone(phone: string, organizationId?: string): Promise<Contact | undefined> {
     // First try exact match (in case phone is stored as full E.164)
-    let result = await this.db.select().from(contacts).where(eq(contacts.phone, phone));
+    let result = await this.db.select().from(contacts).where((eq(contacts.phone, phone)));
     if (result[0]) {
       return result[0];
     }
@@ -241,8 +264,11 @@ export class DbStorage implements IStorage {
     // Normalize the incoming phone number (from Twilio, it's already E.164 format)
     const normalizedIncoming = normalizePhoneNumber(phone);
     
-    // Get all contacts and reconstruct their E.164 numbers using the same logic as when sending
-    const allContacts = await this.db.select().from(contacts);
+    // Get all contacts for this organization and reconstruct their E.164 numbers using the same logic as when sending
+    const allContacts = await this.db
+    .select()
+    .from(contacts)
+    .where(organizationId ? eq(contacts.organizationId, organizationId) : undefined);
     
     for (const contact of allContacts) {
       if (!contact.countryCode || !contact.phone) continue;
@@ -261,8 +287,8 @@ export class DbStorage implements IStorage {
     return undefined;
   }
 
-  async createContact(userId: string, contact: InsertContact): Promise<Contact> {
-    const result = await this.db.insert(contacts).values({ ...contact, userId }).returning();
+  async createContact(organizationId: string, userId: string, contact: InsertContact): Promise<Contact> {
+    const result = await this.db.insert(contacts).values({ ...contact, organizationId, userId }).returning();
     return result[0];
   }
 
@@ -279,17 +305,18 @@ export class DbStorage implements IStorage {
     await this.db.delete(contacts).where(eq(contacts.id, id));
   }
 
-  async getJobs(userId: string): Promise<Job[]> {
-    return await this.db.select().from(jobs).where(eq(jobs.userId, userId));
+  async getJobs(organizationId: string): Promise<Job[]> {
+    return await this.db.select().from(jobs).where(eq(jobs.organizationId, organizationId));
   }
+
 
   async getJob(id: string): Promise<Job | undefined> {
     const result = await this.db.select().from(jobs).where(eq(jobs.id, id));
     return result[0];
   }
 
-  async createJob(userId: string, job: InsertJob): Promise<Job> {
-    const result = await this.db.insert(jobs).values({ ...job, userId }).returning();
+  async createJob(organizationId: string, userId: string, job: InsertJob): Promise<Job> {
+    const result = await this.db.insert(jobs).values({ ...job, organizationId, userId }).returning();
     return result[0];
   }
 
@@ -306,8 +333,8 @@ export class DbStorage implements IStorage {
     await this.db.delete(jobs).where(eq(jobs.id, id));
   }
 
-  async getTemplates(userId: string): Promise<Template[]> {
-    return await this.db.select().from(templates).where(eq(templates.userId, userId));
+  async getTemplates(organizationId: string): Promise<Template[]> {
+    return await this.db.select().from(templates).where(eq(templates.organizationId, organizationId));
   }
 
   async getTemplate(id: string): Promise<Template | undefined> {
@@ -315,8 +342,8 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async createTemplate(userId: string, template: InsertTemplate): Promise<Template> {
-    const result = await this.db.insert(templates).values({ ...template, userId }).returning();
+  async createTemplate(organizationId: string, userId: string, template: InsertTemplate): Promise<Template> {
+    const result = await this.db.insert(templates).values({ ...template, organizationId, userId }).returning();
     return result[0];
   }
 
@@ -333,37 +360,37 @@ export class DbStorage implements IStorage {
     await this.db.delete(templates).where(eq(templates.id, id));
   }
 
-  async bulkCreateContacts(userId: string, insertContacts: InsertContact[]): Promise<Contact[]> {
-    const contactsWithUserId = insertContacts.map(c => ({ ...c, userId }));
-    const result = await this.db.insert(contacts).values(contactsWithUserId).returning();
+  async bulkCreateContacts(organizationId: string, userId: string, insertContacts: InsertContact[]): Promise<Contact[]> {
+    const contactsWithIds = insertContacts.map(c => ({ ...c, organizationId, userId }));
+    const result = await this.db.insert(contacts).values(contactsWithIds).returning();
     return result;
   }
 
-  async createCampaign(userId: string, campaign: InsertCampaign): Promise<Campaign> {
-    const result = await this.db.insert(campaigns).values({ ...campaign, userId }).returning();
+  async createCampaign(organizationId: string, userId: string, campaign: InsertCampaign): Promise<Campaign> {
+    const result = await this.db.insert(campaigns).values({ ...campaign, organizationId, userId }).returning();
     return result[0];
   }
 
-  async getCampaignsForJob(jobId: string): Promise<Campaign[]> {
-    return await this.db.select().from(campaigns).where(eq(campaigns.jobId, jobId));
+  async getCampaignsForJob(jobId: string, organizationId: string): Promise<Campaign[]> {
+    return await this.db.select().from(campaigns).where(and(eq(campaigns.jobId, jobId), eq(campaigns.organizationId, organizationId)));
   }
 
-  async getMessages(contactId: string): Promise<Message[]> {
-    return await this.db.select().from(messages).where(eq(messages.contactId, contactId));
+  async getMessages(contactId: string, organizationId: string): Promise<Message[]> {
+    return await this.db.select().from(messages).where(and(eq(messages.contactId, contactId), eq(messages.organizationId, organizationId)));
   }
 
-  async getMessagesForJob(jobId: string): Promise<Message[]> {
-    return await this.db.select().from(messages).where(eq(messages.jobId, jobId));
+  async getMessagesForJob(jobId: string, organizationId: string): Promise<Message[]> {
+    return await this.db.select().from(messages).where(and(eq(messages.jobId, jobId), eq(messages.organizationId, organizationId)));
   }
 
-  async getAllMessagesForUser(userId: string): Promise<Message[]> {
+  async getAllMessagesForUser(organizationId: string): Promise<Message[]> {
     return await this.db.select().from(messages)
-      .where(eq(messages.userId, userId))
+      .where(eq(messages.organizationId, organizationId))
       .orderBy(desc(messages.createdAt));
   }
 
-  async createMessage(userId: string, message: InsertMessage): Promise<Message> {
-    const result = await this.db.insert(messages).values({ ...message, userId }).returning();
+  async createMessage(organizationId: string, userId: string, message: InsertMessage): Promise<Message> {
+    const result = await this.db.insert(messages).values({ ...message, organizationId, userId }).returning();
     return result[0];
   }
 
@@ -376,53 +403,108 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async getAvailability(jobId: string): Promise<Availability[]> {
-    return await this.db.select().from(availability).where(eq(availability.jobId, jobId));
-  }
-
-  async getAllAvailability(userId: string): Promise<Availability[]> {
-    // Get all availability entries for jobs belonging to this user
+  async getAvailability(jobId: string, organizationId: string): Promise<Availability[]> {
     const result = await this.db
-      .select({ availability: availability })
+      .select({ availability })
       .from(availability)
       .innerJoin(jobs, eq(availability.jobId, jobs.id))
-      .where(eq(jobs.userId, userId));
+      .where(and(eq(availability.jobId, jobId), eq(jobs.organizationId, organizationId)));
+
     return result.map(r => r.availability);
   }
 
-  async getAvailabilityByContact(contactId: string): Promise<Availability[]> {
-    return await this.db.select().from(availability).where(eq(availability.contactId, contactId));
-  }
-
-  async getAvailabilityForContact(jobId: string, contactId: string): Promise<Availability | undefined> {
+  async getAllAvailability(organizationId: string): Promise<Availability[]> {
     const result = await this.db
-      .select()
+      .select({ availability })
       .from(availability)
-      .where(and(eq(availability.jobId, jobId), eq(availability.contactId, contactId)));
-    return result[0];
+      .innerJoin(jobs, eq(availability.jobId, jobs.id))
+      .where(eq(jobs.organizationId, organizationId));
+
+    return result.map(r => r.availability);
   }
 
-  async getConfirmedContactsForJob(jobId: string): Promise<Contact[]> {
+  async getAvailabilityByContact(contactId: string, organizationId: string): Promise<Availability[]> {
+    const result = await this.db
+      .select({ availability })
+      .from(availability)
+      .innerJoin(contacts, eq(availability.contactId, contacts.id))
+      .where(and(eq(availability.contactId, contactId), eq(contacts.organizationId, organizationId)));
+
+    return result.map(r => r.availability);
+  }
+
+  async getAvailabilityForContact(
+    jobId: string,
+    contactId: string,
+    organizationId: string
+  ): Promise<Availability | undefined> {
+    const result = await this.db
+      .select({ availability })
+      .from(availability)
+      .innerJoin(jobs, eq(availability.jobId, jobs.id))
+      .innerJoin(contacts, eq(availability.contactId, contacts.id))
+      .where(
+        and(
+          eq(availability.jobId, jobId),
+          eq(availability.contactId, contactId),
+          eq(jobs.organizationId, organizationId),
+          eq(contacts.organizationId, organizationId)
+        )
+      )
+      .limit(1);
+
+    return result[0]?.availability;
+  }
+
+  async getConfirmedContactsForJob(jobId: string, organizationId: string): Promise<Contact[]> {
     const result = await this.db
       .select({ contact: contacts })
       .from(availability)
+      .innerJoin(jobs, eq(availability.jobId, jobs.id))
       .innerJoin(contacts, eq(availability.contactId, contacts.id))
-      .where(and(eq(availability.jobId, jobId), eq(availability.status, "confirmed")));
+      .where(
+        and(
+          eq(availability.jobId, jobId),
+          eq(availability.status, "confirmed"),
+          eq(jobs.organizationId, organizationId),
+          eq(contacts.organizationId, organizationId)
+        )
+      );
+
     return result.map(r => r.contact);
   }
 
-  async getCurrentJobForContact(contactId: string): Promise<Job | undefined> {
+  async getCurrentJobForContact(contactId: string, organizationId: string): Promise<Job | undefined> {
     const result = await this.db
       .select({ job: jobs })
       .from(availability)
       .innerJoin(jobs, eq(availability.jobId, jobs.id))
-      .where(and(eq(availability.contactId, contactId), eq(availability.status, "confirmed")))
+      .innerJoin(contacts, eq(availability.contactId, contacts.id))
+      .where(
+        and(
+          eq(availability.contactId, contactId),
+          eq(availability.status, "confirmed"),
+          eq(jobs.organizationId, organizationId),
+          eq(contacts.organizationId, organizationId)
+        )
+      )
       .orderBy(jobs.startTime)
       .limit(1);
+
     return result[0]?.job;
   }
 
-  async createAvailability(avail: InsertAvailability): Promise<Availability> {
+  async createAvailability(organizationId: string, avail: InsertAvailability): Promise<Availability> {
+    const job = await this.getJob(avail.jobId);
+    if (!job) {
+      throw new Error("Job not found for organization");
+    }
+
+    const contact = await this.getContact(avail.contactId, organizationId);
+    if (!contact) {
+      throw new Error("Contact not found for organization");
+    }
+
     const result = await this.db.insert(availability).values(avail).returning();
     return result[0];
   }
@@ -446,7 +528,16 @@ export class DbStorage implements IStorage {
   }
 
   async createSubscription(userId: string, subscription: InsertSubscription): Promise<Subscription> {
-    const result = await this.db.insert(subscriptions).values({ ...subscription, userId }).returning();
+    const user = await this.getUser(userId);
+    if (!user?.organizationId) {
+      throw new Error("User not associated with an organization");
+    }
+
+    const result = await this.db
+      .insert(subscriptions)
+      .values({ ...subscription, userId, organizationId: user.organizationId })
+      .returning();
+
     return result[0];
   }
 
@@ -511,7 +602,16 @@ export class DbStorage implements IStorage {
   }
 
   async createCreditGrant(userId: string, grant: InsertCreditGrant): Promise<CreditGrant> {
-    const result = await this.db.insert(creditGrants).values({ ...grant, userId }).returning();
+    const organizationId = grant.organizationId ?? (await this.getUser(userId))?.organizationId;
+    if (!organizationId) {
+      throw new Error("User not associated with an organization");
+    }
+
+    const result = await this.db
+      .insert(creditGrants)
+      .values({ ...grant, organizationId, userId })
+      .returning();
+
     return result[0];
   }
 
@@ -529,7 +629,16 @@ export class DbStorage implements IStorage {
   }
 
   async createCreditTransaction(userId: string, transaction: InsertCreditTransaction): Promise<CreditTransaction> {
-    const result = await this.db.insert(creditTransactions).values({ ...transaction, userId }).returning();
+    const organizationId = transaction.organizationId ?? (await this.getUser(userId))?.organizationId;
+    if (!organizationId) {
+      throw new Error("User not associated with an organization");
+    }
+
+    const result = await this.db
+      .insert(creditTransactions)
+      .values({ ...transaction, organizationId, userId })
+      .returning();
+
     return result[0];
   }
 
@@ -550,13 +659,20 @@ export class DbStorage implements IStorage {
 
     // Use database transaction for atomicity
     return await this.db.transaction(async (tx) => {
+      const user = await this.getUser(userId);
+      if (!user?.organizationId) {
+        throw new Error("User not associated with an organization");
+      }
+      const organizationId = user.organizationId;
+
       // Get all active grants sorted by expiry (earliest first)
       // Transaction isolation provides the necessary locking
       const now = new Date();
       const allGrants = await tx
         .select()
         .from(creditGrants)
-        .where(eq(creditGrants.userId, userId));
+        .where(eq(creditGrants.userId, userId))
+        .for("update");
 
       const activeGrants = allGrants
         .filter(g => g.creditsRemaining > 0)
@@ -592,12 +708,18 @@ export class DbStorage implements IStorage {
             creditsConsumed: grant.creditsConsumed + toConsume,
             creditsRemaining: grant.creditsRemaining - toConsume,
           })
-          .where(eq(creditGrants.id, grant.id));
+          .where(
+            and(
+              eq(creditGrants.id, grant.id),
+              eq(creditGrants.organizationId, organizationId)
+            )
+          );
 
         // Create transaction record
         const txResult = await tx
           .insert(creditTransactions)
           .values({
+            organizationId,
             userId,
             grantId: grant.id,
             messageId,
@@ -621,6 +743,12 @@ export class DbStorage implements IStorage {
   ): Promise<CreditTransaction[]> {
     // Use database transaction for atomicity
     return await this.db.transaction(async (tx) => {
+      const user = await this.getUser(userId);
+      if (!user?.organizationId) {
+        throw new Error("User not associated with an organization");
+      }
+      const organizationId = user.organizationId;
+
       const refundTransactions: CreditTransaction[] = [];
 
       for (const txId of transactionIds) {
@@ -639,6 +767,10 @@ export class DbStorage implements IStorage {
           throw new Error(`Transaction ${txId} does not belong to user`);
         }
 
+        if (originalTx.organizationId !== organizationId) {
+          throw new Error(`Transaction ${txId} does not belong to organization`);
+        }
+
         if (originalTx.delta >= 0) {
           throw new Error(`Transaction ${txId} is not a consumption`);
         }
@@ -647,7 +779,12 @@ export class DbStorage implements IStorage {
         const grantResult = await tx
           .select()
           .from(creditGrants)
-          .where(eq(creditGrants.id, originalTx.grantId));
+          .where(
+            and(
+              eq(creditGrants.id, originalTx.grantId),
+              eq(creditGrants.organizationId, organizationId)
+            )
+          );
 
         const grant = grantResult[0];
 
@@ -670,6 +807,7 @@ export class DbStorage implements IStorage {
         const refundTxResult = await tx
           .insert(creditTransactions)
           .values({
+            organizationId,
             userId,
             grantId: grant.id,
             messageId: originalTx.messageId,
@@ -683,6 +821,38 @@ export class DbStorage implements IStorage {
 
       return refundTransactions;
     });
+  }
+
+  async getPlatformSettings(): Promise<PlatformSettings> {
+    const existing = await this.db.select().from(platformSettings).limit(1);
+    if (existing[0]) {
+      return existing[0];
+    }
+
+    const inserted = await this.db
+      .insert(platformSettings)
+      .values({
+        feedbackEmail: "Feedback@HeyTeam.ai",
+        supportEmail: "support@heyteam.ai",
+      })
+      .returning();
+
+    return inserted[0];
+  }
+
+  async updatePlatformSettings(updates: Partial<InsertPlatformSettings>): Promise<PlatformSettings> {
+    const current = await this.getPlatformSettings();
+
+    const result = await this.db
+      .update(platformSettings)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(platformSettings.id, current.id))
+      .returning();
+
+    return result[0];
   }
 
   // Reseller methods
@@ -792,12 +962,21 @@ export class DbStorage implements IStorage {
   }
 
   // Feedback methods
-  async createFeedback(insertFeedback: InsertFeedback): Promise<Feedback> {
-    const result = await this.db.insert(feedback).values({ 
-      ...insertFeedback, 
-      userId: (insertFeedback as any).userId, 
-      status: "new" 
-    }).returning();
+  async createFeedback(
+    organizationId: string,
+    userId: string,
+    insertFeedback: InsertFeedback
+  ): Promise<Feedback> {
+    const result = await this.db
+      .insert(feedback)
+      .values({
+        ...insertFeedback,
+        organizationId,
+        userId,
+        status: "new",
+      })
+      .returning();
+
     return result[0];
   }
 

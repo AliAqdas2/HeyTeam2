@@ -28,6 +28,9 @@ interface SubscriptionPlan {
   multiManager: boolean;
   aiFeatures: boolean;
   dedicatedNumber: boolean;
+  targetAudience: string;
+  featureBullets: string;
+  useCase: string;
 }
 
 interface SmsBundle {
@@ -147,19 +150,52 @@ export default function Billing() {
   };
 
   const getPlanFeatures = (plan: SubscriptionPlan) => {
-    const features = [
+    const normalized = plan.featureBullets
+      ? plan.featureBullets
+          .split("\n")
+          .map((line) => line.trim())
+          .map((line) => (line === "" ? "__SPACER__" : line))
+      : [];
+
+    if (normalized.length > 0) {
+      return normalized;
+    }
+
+    const fallback = [
       `${plan.monthlyCredits.toLocaleString()} messages per month`,
-    
       `${plan.supportLevel} support`,
     ];
 
-    if (plan.customTemplates) features.push("Custom message templates");
-    if (plan.autoFollowUp) features.push("Auto follow-up messages");
-    if (plan.multiManager) features.push("Multi-manager access");
-    if (plan.aiFeatures) features.push("AI-powered insights");
-    if (plan.dedicatedNumber) features.push("Dedicated phone number");
+    if (plan.customTemplates) fallback.push("Custom message templates");
+    if (plan.autoFollowUp) fallback.push("Auto follow-up messages");
+    if (plan.multiManager) fallback.push("Multi-manager access");
+    if (plan.aiFeatures) fallback.push("AI-powered insights");
+    if (plan.dedicatedNumber) fallback.push("Dedicated phone number");
 
-    return features;
+    return fallback;
+  };
+
+  const renderFeatureItem = (feature: string, key: string | number) => {
+    if (feature === "__SPACER__") {
+      return <div key={key} className="h-2" aria-hidden />;
+    }
+
+    const isSectionHeading = feature.endsWith(":");
+
+    if (isSectionHeading) {
+      return (
+        <div key={key} className="pt-2 text-sm font-semibold text-foreground">
+          {feature}
+        </div>
+      );
+    }
+
+    return (
+      <div key={key} className="flex items-start gap-2">
+        <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+        <span className="text-sm">{feature}</span>
+      </div>
+    );
   };
 
   const handleSelectPlan = (planId: string) => {
@@ -230,6 +266,7 @@ export default function Billing() {
   const creditUsagePercent = currentPlan && credits
     ? Math.round(((currentPlan.monthlyCredits - credits.available) / currentPlan.monthlyCredits) * 100)
     : 0;
+  const currentPlanFeatures = currentPlan ? getPlanFeatures(currentPlan) : [];
 
   return (
     <div className="space-y-8">
@@ -263,6 +300,22 @@ export default function Billing() {
                   <p className="text-sm text-muted-foreground mt-1">
                     Renews on {format(new Date(subscription.currentPeriodEnd), "MMMM d, yyyy")}
                   </p>
+                )}
+                {currentPlan.targetAudience && (
+                  <div className="mt-4 space-y-1 text-sm">
+                    <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">
+                      Target
+                    </p>
+                    <p>{currentPlan.targetAudience}</p>
+                  </div>
+                )}
+                {currentPlan.useCase && (
+                  <div className="mt-3 space-y-1 text-sm">
+                    <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">
+                      Use Case
+                    </p>
+                    <p className="text-muted-foreground">{currentPlan.useCase}</p>
+                  </div>
                 )}
               </div>
               <div className="flex gap-2">
@@ -298,6 +351,16 @@ export default function Billing() {
                 <p className="text-xs text-muted-foreground">
                   {creditUsagePercent}% used this month
                 </p>
+              </div>
+            )}
+            {currentPlanFeatures.length > 0 && (
+              <div className="space-y-2 pt-2">
+                <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">
+                  Plan Features
+                </p>
+                <div className="space-y-2">
+                  {currentPlanFeatures.map((feature, index) => renderFeatureItem(feature, `current-${index}`))}
+                </div>
               </div>
             )}
           </CardContent>
@@ -355,16 +418,31 @@ export default function Billing() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-3">
-                    {getPlanFeatures(plan).map((feature, index) => (
-                      <div key={index} className="flex items-start gap-2" data-testid={`text-feature-${plan.name.toLowerCase()}-${index}`}>
-                        <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                        <span className="text-sm">{feature}</span>
+                    {plan.targetAudience && (
+                      <div className="space-y-1 text-sm">
+                        <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">
+                          Target
+                        </p>
+                        <p>{plan.targetAudience}</p>
                       </div>
-                    ))}
+                    )}
+                    {plan.useCase && (
+                      <div className="space-y-1 text-sm">
+                        <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">
+                          Use Case
+                        </p>
+                        <p className="text-muted-foreground">{plan.useCase}</p>
+                      </div>
+                    )}
+                    <div className="space-y-2" data-testid={`text-feature-${plan.name.toLowerCase()}-group`}>
+                      {getPlanFeatures(plan).map((feature, index) => renderFeatureItem(feature, `${plan.id}-${index}`))}
+                    </div>
                   </div>
                   <Button
-                    className="w-full"
-                    variant={isCurrent ? "default" : "outline"}
+                    className={`w-full ${
+                      isCurrent ? "" : "bg-[#14b8a6] hover:bg-[#0d9488] text-white border-transparent"
+                    } ${checkoutMutation.isPending ? "opacity-70" : ""}`}
+                    variant="default"
                     disabled={isCurrent || checkoutMutation.isPending}
                     onClick={() => handleSelectPlan(plan.id)}
                     data-testid={`button-select-${plan.name.toLowerCase()}`}

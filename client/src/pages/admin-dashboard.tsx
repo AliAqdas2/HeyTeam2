@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Redirect } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, CreditCard, MessageSquare, TrendingUp, Shield, Plus, Ban, CheckCircle, Trash2, Share2, Copy, Edit } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -105,6 +105,13 @@ interface Feedback {
   };
 }
 
+interface PlatformSettingsData {
+  id: string;
+  feedbackEmail: string;
+  supportEmail: string;
+  updatedAt: string;
+}
+
 const CURRENCY_SYMBOLS: Record<string, string> = {
   GBP: "£",
   USD: "$",
@@ -138,35 +145,51 @@ export default function AdminDashboard() {
   const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
   const [reportYear, setReportYear] = useState(new Date().getFullYear());
   const [showAllTransactions, setShowAllTransactions] = useState(false);
+  const [feedbackEmail, setFeedbackEmail] = useState("feedback@heyteam.ai");
+  const [supportEmail, setSupportEmail] = useState("support@heyteam.ai");
 
-  const { data: currentUser } = useQuery<{ isAdmin: boolean }>({
-    queryKey: ["/api/auth/me"],
+  const { data: adminMe, isLoading: isLoadingAdminMe } = useQuery<{ admin: { id: string; name: string | null; email: string } }>({
+    queryKey: ["/api/admin/auth/me"],
   });
+
+  const isAdminReady = !!adminMe?.admin;
 
   const { data: users, isLoading } = useQuery<AdminUserData[]>({
     queryKey: ["/api/admin/users"],
-    enabled: !!currentUser?.isAdmin,
+    enabled: isAdminReady,
   });
 
   const { data: platformAdmins, isLoading: isLoadingAdmins } = useQuery<PlatformAdminUser[]>({
     queryKey: ["/api/admin/admin-users"],
-    enabled: !!currentUser?.isAdmin,
+    enabled: isAdminReady,
   });
 
   const { data: resellers, isLoading: isLoadingResellers } = useQuery<Reseller[]>({
     queryKey: ["/api/admin/resellers"],
-    enabled: !!currentUser?.isAdmin,
+    enabled: isAdminReady,
   });
 
   const { data: resellerReport, isLoading: isLoadingReport } = useQuery<ResellerReport>({
     queryKey: ["/api/admin/resellers", selectedReseller?.id, "report", reportMonth, reportYear],
-    enabled: !!currentUser?.isAdmin && !!selectedReseller && isReportDialogOpen,
+    enabled: isAdminReady && !!selectedReseller && isReportDialogOpen,
   });
 
   const { data: feedback, isLoading: isLoadingFeedback } = useQuery<Feedback[]>({
     queryKey: ["/api/admin/feedback"],
-    enabled: !!currentUser?.isAdmin,
+    enabled: isAdminReady,
   });
+
+  const { data: platformSettings, isLoading: isLoadingSettings } = useQuery<PlatformSettingsData>({
+    queryKey: ["/api/admin/settings"],
+    enabled: isAdminReady,
+  });
+
+  useEffect(() => {
+    if (platformSettings) {
+      setFeedbackEmail(platformSettings.feedbackEmail);
+      setSupportEmail(platformSettings.supportEmail);
+    }
+  }, [platformSettings]);
 
   const disableUserMutation = useMutation({
     mutationFn: async (userId: string) => {
@@ -322,6 +345,25 @@ export default function AdminDashboard() {
     },
   });
 
+  const updatePlatformSettingsMutation = useMutation<PlatformSettingsData, any, { feedbackEmail: string; supportEmail: string }>({
+    mutationFn: async (payload) => {
+      return await apiRequest("PATCH", "/api/admin/settings", payload);
+    },
+    onSuccess: (data: PlatformSettingsData) => {
+      setFeedbackEmail(data.feedbackEmail);
+      setSupportEmail(data.supportEmail);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+      toast({ title: "Platform settings updated" });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update settings",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Filter users based on toggle state - MUST be before conditional returns
   const filteredUsers = useMemo(() => {
     if (showDisabledInstances) {
@@ -329,6 +371,14 @@ export default function AdminDashboard() {
     }
     return users?.filter(u => u.isActive === true);
   }, [users, showDisabledInstances]);
+
+  const isSettingsDirty = platformSettings
+    ? feedbackEmail !== platformSettings.feedbackEmail || supportEmail !== platformSettings.supportEmail
+    : false;
+
+  const settingsLastUpdated = platformSettings?.updatedAt
+    ? formatDistanceToNow(new Date(platformSettings.updatedAt), { addSuffix: true })
+    : null;
 
   const copyToClipboard = (text: string, message: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -342,11 +392,11 @@ export default function AdminDashboard() {
   };
 
   // Redirect non-admin users
-  if (currentUser && !currentUser.isAdmin) {
+  if (adminMe && !adminMe.admin) {
     return <Redirect to="/" />;
   }
 
-  if (isLoading || isLoadingAdmins || isLoadingResellers || isLoadingFeedback) {
+  if (isLoadingAdminMe || isLoading || isLoadingAdmins || isLoadingResellers || isLoadingFeedback || isLoadingSettings) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" aria-label="Loading" />
@@ -428,6 +478,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="admins" data-testid="tab-admins">Platform Admins</TabsTrigger>
           <TabsTrigger value="resellers" data-testid="tab-resellers">Resellers</TabsTrigger>
           <TabsTrigger value="feedback" data-testid="tab-feedback">Feedback</TabsTrigger>
+          <TabsTrigger value="settings" data-testid="tab-settings">Platform Settings</TabsTrigger>
         </TabsList>
 
         {/* User Instances Tab */}
@@ -1011,6 +1062,91 @@ export default function AdminDashboard() {
                   <p className="text-muted-foreground">No feedback found</p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Platform Settings Tab */}
+        <TabsContent value="settings" className="mt-6">
+          <Card data-testid="card-platform-settings">
+            <CardHeader>
+              <div>
+                <CardTitle>Platform Settings</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Configure the default email addresses used for platform communications.
+                </p>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form
+                className="space-y-6 max-w-xl"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  updatePlatformSettingsMutation.mutate({ feedbackEmail, supportEmail });
+                }}
+              >
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="platform-feedback-email">Feedback Email</Label>
+                    <Input
+                      id="platform-feedback-email"
+                      type="email"
+                      value={feedbackEmail}
+                      onChange={(event) => setFeedbackEmail(event.target.value)}
+                      placeholder="feedback@heyteam.ai"
+                      data-testid="input-settings-feedback-email"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Feedback submissions will be sent to this address.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="platform-support-email">Support Email</Label>
+                    <Input
+                      id="platform-support-email"
+                      type="email"
+                      value={supportEmail}
+                      onChange={(event) => setSupportEmail(event.target.value)}
+                      placeholder="support@heyteam.ai"
+                      data-testid="input-settings-support-email"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Displayed wherever users are asked to contact support.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="submit"
+                    disabled={!isSettingsDirty || updatePlatformSettingsMutation.isPending}
+                    data-testid="button-save-platform-settings"
+                  >
+                    {updatePlatformSettingsMutation.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      if (platformSettings) {
+                        setFeedbackEmail(platformSettings.feedbackEmail);
+                        setSupportEmail(platformSettings.supportEmail);
+                      } else {
+                        setFeedbackEmail("feedback@heyteam.ai");
+                        setSupportEmail("support@heyteam.ai");
+                      }
+                    }}
+                    disabled={updatePlatformSettingsMutation.isPending || !isSettingsDirty}
+                    data-testid="button-reset-platform-settings"
+                  >
+                    Reset
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Last updated: {settingsLastUpdated ? settingsLastUpdated : "—"}
+                  </span>
+                </div>
+              </form>
             </CardContent>
           </Card>
         </TabsContent>
