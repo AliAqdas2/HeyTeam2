@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">HeyTeam</string>
+    <string name="title_activity_main">HeyTeam</string>
+    <string name="package_name">ai.heyteam.portal</string>
+    <string name="custom_url_scheme">ai.heyteam.portal</string>
+</resources>
