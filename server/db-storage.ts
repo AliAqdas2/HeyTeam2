@@ -2,14 +2,14 @@ import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
 const { Pool } = pkg;
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, lt } from "drizzle-orm";
 import { constructE164Phone, normalizePhoneNumber } from "./lib/phone-utils";
 import {
   organizations, users, contacts, jobs, templates, campaigns, messages,
   availability, subscriptions,
   passwordResetTokens, subscriptionPlans, smsBundles, creditGrants, creditTransactions,
   adminUsers, resellers, resellerTransactions, resellerPayouts, feedback, platformSettings,
-  jobSkillRequirements,
+  jobSkillRequirements, deviceTokens, pushNotificationDeliveries,
   type Organization, type InsertOrganization,
   type User, type InsertUser,
   type Contact, type InsertContact,
@@ -31,6 +31,8 @@ import {
   type Feedback, type InsertFeedback,
   type PlatformSettings, type InsertPlatformSettings,
   type JobSkillRequirement, type InsertJobSkillRequirement,
+  type DeviceToken, type InsertDeviceToken,
+  type PushNotificationDelivery, type InsertPushNotificationDelivery,
 } from "@shared/schema";
 import type { IStorage } from "./storage";
 
@@ -297,7 +299,7 @@ export class DbStorage implements IStorage {
   async getContactByEmail(email: string, organizationId?: string): Promise<Contact | undefined> {
     const conditions = [
       eq(contacts.email, email),
-      eq(contacts.hasLogin, true) // Only return contacts with login enabled
+      eq(contacts.hasLogin, true), // Only return contacts with login enabled
     ];
     
     if (organizationId) {
@@ -1137,5 +1139,91 @@ export class DbStorage implements IStorage {
       .where(eq(feedback.id, id))
       .returning();
     return result[0];
+  }
+
+  // Device token methods
+  async saveDeviceToken(contactId: string, token: string, platform: string): Promise<void> {
+    // Check if token already exists
+    const existing = await this.db
+      .select()
+      .from(deviceTokens)
+      .where(eq(deviceTokens.token, token))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update existing token
+      await this.db
+        .update(deviceTokens)
+        .set({
+          contactId,
+          platform,
+          updatedAt: new Date(),
+        })
+        .where(eq(deviceTokens.token, token));
+    } else {
+      // Insert new token
+      await this.db.insert(deviceTokens).values({
+        contactId,
+        token,
+        platform,
+      });
+    }
+  }
+
+  async getDeviceTokensForContact(contactId: string): Promise<DeviceToken[]> {
+    return await this.db
+      .select()
+      .from(deviceTokens)
+      .where(eq(deviceTokens.contactId, contactId));
+  }
+
+  async getDeviceTokensForContacts(contactIds: string[]): Promise<DeviceToken[]> {
+    if (contactIds.length === 0) {
+      return [];
+    }
+    return await this.db
+      .select()
+      .from(deviceTokens)
+      .where(inArray(deviceTokens.contactId, contactIds));
+  }
+
+  async removeDeviceToken(token: string): Promise<void> {
+    await this.db.delete(deviceTokens).where(eq(deviceTokens.token, token));
+  }
+
+  // Push Notification Delivery methods
+  async createPushNotificationDelivery(delivery: InsertPushNotificationDelivery): Promise<PushNotificationDelivery> {
+    const result = await this.db.insert(pushNotificationDeliveries).values(delivery).returning();
+    return result[0];
+  }
+
+  async updatePushNotificationDelivery(id: string, updates: Partial<InsertPushNotificationDelivery>): Promise<PushNotificationDelivery> {
+    const result = await this.db
+      .update(pushNotificationDeliveries)
+      .set(updates)
+      .where(eq(pushNotificationDeliveries.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getPushNotificationDeliveryByNotificationId(notificationId: string): Promise<PushNotificationDelivery | undefined> {
+    const result = await this.db
+      .select()
+      .from(pushNotificationDeliveries)
+      .where(eq(pushNotificationDeliveries.notificationId, notificationId));
+    return result[0];
+  }
+
+  async getUndeliveredNotifications(olderThanSeconds: number): Promise<PushNotificationDelivery[]> {
+    const cutoffTime = new Date(Date.now() - olderThanSeconds * 1000);
+    return await this.db
+      .select()
+      .from(pushNotificationDeliveries)
+      .where(
+        and(
+          eq(pushNotificationDeliveries.status, "sent"),
+          lt(pushNotificationDeliveries.createdAt, cutoffTime)
+        )
+      );
   }
 }

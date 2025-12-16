@@ -201,7 +201,8 @@ router.get("/me", async (req: Request, res: Response) => {
   try {
     const userId = req.headers['x-user-id'] as string;
     const contactId = req.headers['x-contact-id'] as string;
-
+    console.log("UserID:",userId );
+        console.log("ContactID:",contactId );
     if (userId) {
       const user = await storage.getUser(userId);
       if (!user) {

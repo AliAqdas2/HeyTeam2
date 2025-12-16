@@ -14,16 +14,9 @@ export function MobileTabBar() {
 
   return (
     <nav
-      className={cn("ios-tap")}
+      className={cn("mobile-tab-bar-fixed ios-tap")}
       style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        width: "100%",
-        zIndex: 9999,
         paddingTop: "10px",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
         backdropFilter: "blur(20px)",
         WebkitBackdropFilter: "blur(20px)",
         backgroundColor: "hsl(var(--background) / 0.95)",

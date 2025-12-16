@@ -60,24 +60,19 @@ export function ContactHeader() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      return await contactApiRequest("POST", "/api/mobile/auth/logout", {});
-    },
-    onSuccess: async () => {
+      // For mobile apps, just clear local storage - no API call needed
       removeContactId();
-      removeUserId(); // Clear both IDs to be safe
-      await removeDeviceToken(); // Remove push notification token
+      removeUserId();
+      await removeDeviceToken();
+      return Promise.resolve();
+    },
+    onSuccess: () => {
       queryClient.setQueryData(["/api/mobile/auth/me"], null);
       queryClient.clear();
       toast({ title: "Logged out successfully" });
       setTimeout(() => {
         setLocation("/auth");
       }, 100);
-    },
-    onError: () => {
-      toast({
-        title: "Logout failed",
-        variant: "destructive",
-      });
     },
   });
 

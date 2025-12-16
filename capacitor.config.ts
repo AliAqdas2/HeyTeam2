@@ -16,6 +16,7 @@ const config: CapacitorConfig = {
   },
   android: {
     allowMixedContent: true,
+    adjustMarginsForEdgeToEdge: 'disable', // Disable edge-to-edge to avoid API 35 compilation issues
   },
   plugins: {
     SplashScreen: {

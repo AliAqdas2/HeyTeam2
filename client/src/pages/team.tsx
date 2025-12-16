@@ -173,37 +173,18 @@ export default function TeamPage() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      // For mobile apps, use mobile logout endpoint
-      if (Capacitor.isNativePlatform()) {
-        const baseUrl = "https://portal.heyteam.ai";
-        const userId = getUserId();
-        return await fetch(`${baseUrl}/api/mobile/auth/logout`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(userId ? { "X-User-ID": userId } : {}),
-          },
-          credentials: "include",
-        });
-      }
-      return await apiRequest("POST", "/api/auth/logout");
-    },
-    onSuccess: () => {
-      // Clear both userId and contactId to be safe
+      // Just clear local storage - no API call needed
       removeUserId();
       removeContactId();
+      return Promise.resolve();
+    },
+    onSuccess: () => {
       queryClient.setQueryData(["/api/auth/me"], null);
       queryClient.clear();
       toast({ title: "Logged out successfully" });
       setTimeout(() => {
         setLocation("/auth");
       }, 100);
-    },
-    onError: () => {
-      toast({
-        title: "Logout failed",
-        variant: "destructive",
-      });
     },
   });
 

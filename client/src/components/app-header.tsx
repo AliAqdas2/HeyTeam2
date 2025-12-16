@@ -58,42 +58,23 @@ export function AppHeader() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      // For mobile apps, use mobile logout endpoint
+      // Just clear local storage - no API call needed
       if (Capacitor.isNativePlatform()) {
-        const baseUrl = "https://portal.heyteam.ai";
-        return await fetch(`${baseUrl}/api/mobile/auth/logout`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(getUserId() ? { "X-User-ID": getUserId()! } : {}),
-          },
-          credentials: "include",
-        });
+        removeUserId();
+        removeContactId();
       }
-      return await apiRequest("POST", "/api/auth/logout");
+      return Promise.resolve();
     },
     onSuccess: () => {
       // Clear the user query cache, which will trigger App.tsx to redirect to /auth
       queryClient.setQueryData(["/api/auth/me"], null);
       queryClient.clear();
       
-      // Clear mobile auth data - clear both IDs to be safe
-      if (Capacitor.isNativePlatform()) {
-        removeUserId();
-        removeContactId();
-      }
-      
       toast({ title: "Logged out successfully" });
       // Small delay to ensure state updates before redirect
       setTimeout(() => {
         setLocation("/auth");
       }, 100);
-    },
-    onError: () => {
-      toast({
-        title: "Logout failed",
-        variant: "destructive",
-      });
     },
   });
 

@@ -17,7 +17,7 @@ import { nanoid } from "nanoid";
 import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray, lt } from "drizzle-orm";
 
 // server/lib/phone-utils.ts
 var COUNTRY_DIAL_CODES = {
@@ -160,6 +160,14 @@ var contacts = pgTable("contacts", {
   // "free", "on_job", "off_shift"
   rosterToken: varchar("roster_token").unique(),
   // Unique token for viewing roster
+  password: text("password"),
+  // Password for contact login (nullable, only set when hasLogin is true)
+  hasLogin: boolean("has_login").notNull().default(false),
+  // Flag to indicate if contact has login enabled
+  emailVerified: boolean("email_verified").notNull().default(false),
+  // Email verification status
+  lastLoginAt: timestamp("last_login_at"),
+  // Timestamp of last login
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow()
 });
@@ -385,6 +393,15 @@ var platformSettings = pgTable("platform_settings", {
   supportEmail: text("support_email").notNull().default("support@heyteam.ai"),
   updatedAt: timestamp("updated_at").notNull().defaultNow()
 });
+var deviceTokens = pgTable("device_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  platform: text("platform").notNull(),
+  // "ios" | "android"
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow()
+});
 var insertOrganizationSchema = createInsertSchema(organizations).omit({
   id: true,
   createdAt: true,
@@ -513,6 +530,29 @@ var insertFeedbackSchema = createInsertSchema(feedback).omit({
   // Will be set automatically from user's organization
   createdAt: true,
   status: true
+});
+var insertDeviceTokenSchema = createInsertSchema(deviceTokens).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+var pushNotificationDeliveries = pgTable("push_notification_deliveries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+  jobId: varchar("job_id").notNull().references(() => jobs.id, { onDelete: "cascade" }),
+  campaignId: varchar("campaign_id").references(() => campaigns.id, { onDelete: "set null" }),
+  deviceToken: text("device_token").notNull(),
+  notificationId: text("notification_id").notNull().unique(),
+  // Unique ID for this notification
+  status: text("status").notNull().default("sent"),
+  // "sent", "delivered", "failed", "sms_fallback"
+  deliveredAt: timestamp("delivered_at"),
+  smsFallbackSentAt: timestamp("sms_fallback_sent_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow()
+});
+var insertPushNotificationDeliverySchema = createInsertSchema(pushNotificationDeliveries).omit({
+  id: true,
+  createdAt: true
 });
 
 // server/db-storage.ts
@@ -1194,6 +1234,57 @@ var DbStorage = class {
     const result = await this.db.update(feedback).set({ status }).where(eq(feedback.id, id)).returning();
     return result[0];
   }
+  // Device token methods
+  async saveDeviceToken(contactId, token, platform) {
+    const existing = await this.db.select().from(deviceTokens).where(eq(deviceTokens.token, token)).limit(1);
+    if (existing.length > 0) {
+      await this.db.update(deviceTokens).set({
+        contactId,
+        platform,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq(deviceTokens.token, token));
+    } else {
+      await this.db.insert(deviceTokens).values({
+        contactId,
+        token,
+        platform
+      });
+    }
+  }
+  async getDeviceTokensForContact(contactId) {
+    return await this.db.select().from(deviceTokens).where(eq(deviceTokens.contactId, contactId));
+  }
+  async getDeviceTokensForContacts(contactIds) {
+    if (contactIds.length === 0) {
+      return [];
+    }
+    return await this.db.select().from(deviceTokens).where(inArray(deviceTokens.contactId, contactIds));
+  }
+  async removeDeviceToken(token) {
+    await this.db.delete(deviceTokens).where(eq(deviceTokens.token, token));
+  }
+  // Push Notification Delivery methods
+  async createPushNotificationDelivery(delivery) {
+    const result = await this.db.insert(pushNotificationDeliveries).values(delivery).returning();
+    return result[0];
+  }
+  async updatePushNotificationDelivery(id, updates) {
+    const result = await this.db.update(pushNotificationDeliveries).set(updates).where(eq(pushNotificationDeliveries.id, id)).returning();
+    return result[0];
+  }
+  async getPushNotificationDeliveryByNotificationId(notificationId) {
+    const result = await this.db.select().from(pushNotificationDeliveries).where(eq(pushNotificationDeliveries.notificationId, notificationId));
+    return result[0];
+  }
+  async getUndeliveredNotifications(olderThanSeconds) {
+    const cutoffTime = new Date(Date.now() - olderThanSeconds * 1e3);
+    return await this.db.select().from(pushNotificationDeliveries).where(
+      and(
+        eq(pushNotificationDeliveries.status, "sent"),
+        lt(pushNotificationDeliveries.createdAt, cutoffTime)
+      )
+    );
+  }
 };
 
 // server/storage.ts
@@ -1572,6 +1663,8 @@ router.get("/me", async (req, res) => {
   try {
     const userId = req.headers["x-user-id"];
     const contactId = req.headers["x-contact-id"];
+    console.log("UserID:", userId);
+    console.log("ContactID:", contactId);
     if (userId) {
       const user = await storage.getUser(userId);
       if (!user) {
@@ -2163,11 +2256,11 @@ router2.post("/logout", (req, res) => {
     res.json({ message: "Logged out successfully" });
   });
 });
+router2.post("/mobile/logout", (req, res) => {
+  res.json({ message: "Logged out successfully" });
+});
 router2.get("/me", async (req, res) => {
   try {
-    console.log("===== /me endpoint hit =====");
-    console.log("Incoming headers:", req.headers);
-    console.log("Session at start:", req.session);
     const getUserFromSession = async (session2) => {
       if (session2?.userId) {
         const user = await storage.getUser(session2.userId);
@@ -2213,14 +2306,11 @@ router2.get("/me", async (req, res) => {
       }
     }
     const rawCookie = req.headers.cookie;
-    console.log("[/me] Raw Cookie Header:", rawCookie);
     if (rawCookie) {
       const match = rawCookie.match(/connect\.sid=([^;]+)/);
       if (match) {
         const sid = match[1];
-        console.log("[/me] Extracted session ID:", sid);
         req.sessionID = sid;
-        console.log("[/me] Attempting manual session restore...");
         return req.sessionStore.get(sid, async (err, session2) => {
           if (err) {
             console.error("[/me] \u274C Error reading session store:", err);
@@ -2339,6 +2429,240 @@ var auth_routes_default = router2;
 
 // server/routes.ts
 import PDFDocument from "pdfkit";
+
+// server/push-notifications.ts
+import * as apn from "apn";
+import * as admin from "firebase-admin";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+import { randomBytes as randomBytes3 } from "crypto";
+var apnProvider = null;
+var fcmInitialized = false;
+function initializeAPNs() {
+  if (apnProvider) {
+    return apnProvider;
+  }
+  const keyPath = process.env.APNS_KEY_PATH;
+  const keyId = process.env.APNS_KEY_ID;
+  const teamId = process.env.APNS_TEAM_ID;
+  const bundleId = process.env.APNS_BUNDLE_ID || "ai.heyteam.portal";
+  const production = true;
+  if (!keyPath || !keyId || !teamId) {
+    console.warn("[PushNotifications] APNs not configured - missing environment variables");
+    return null;
+  }
+  try {
+    const resolvedPath = keyPath.startsWith("/") ? keyPath : resolve(process.cwd(), keyPath);
+    const key = readFileSync(resolvedPath, "utf8");
+    apnProvider = new apn.Provider({
+      token: {
+        key,
+        keyId,
+        teamId
+      },
+      production
+      // Set to true for production, false for sandbox
+    });
+    console.log("[PushNotifications] APNs initialized successfully");
+    return apnProvider;
+  } catch (error) {
+    console.error("[PushNotifications] Failed to initialize APNs:", error);
+    return null;
+  }
+}
+function initializeFCM() {
+  if (fcmInitialized) {
+    return true;
+  }
+  const serviceAccountPath = process.env.FCM_SERVICE_ACCOUNT_PATH;
+  const fcmServerKey = process.env.FCM_SERVER_KEY;
+  if (!serviceAccountPath && !fcmServerKey) {
+    console.warn("[PushNotifications] FCM not configured - missing environment variables");
+    return false;
+  }
+  try {
+    if (serviceAccountPath) {
+      const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, "utf8"));
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    } else if (fcmServerKey) {
+      console.log("[PushNotifications] FCM server key provided - will use HTTP API");
+    }
+    fcmInitialized = true;
+    console.log("[PushNotifications] FCM initialized successfully");
+    return true;
+  } catch (error) {
+    console.error("[PushNotifications] Failed to initialize FCM:", error);
+    return false;
+  }
+}
+function generateNotificationId() {
+  return `notif_${Date.now()}_${randomBytes3(8).toString("hex")}`;
+}
+async function sendPushNotification(token, platform, notification) {
+  const notificationId = notification.notificationId || generateNotificationId();
+  try {
+    if (platform === "ios") {
+      const provider = initializeAPNs();
+      if (!provider) {
+        console.warn("[PushNotifications] APNs provider not available");
+        return { success: false, notificationId };
+      }
+      const bundleId = process.env.APNS_BUNDLE_ID || "ai.heyteam.portal";
+      const note = new apn.Notification();
+      note.alert = {
+        title: notification.title,
+        body: notification.body
+      };
+      note.topic = bundleId;
+      note.sound = "default";
+      note.badge = 1;
+      note.category = "JOB_INVITATION";
+      note.threadId = notification.data?.jobId || "default";
+      note.payload = {
+        ...notification.data,
+        notificationId,
+        actionType: "job_invitation"
+      };
+      console.log("[PushNotifications] APNs notification:", note);
+      const result = await provider.send(note, token);
+      console.log("[PushNotifications] APNs result:", result);
+      if (result.failed && result.failed.length > 0) {
+        console.error("[PushNotifications] APNs send failed:", result.failed);
+        const failure = result.failed[0];
+        if (failure.response?.reason === "BadDeviceToken" || failure.response?.reason === "Unregistered") {
+          console.log("[PushNotifications] Invalid token detected, should be removed:", token);
+        }
+        return { success: false, notificationId };
+      }
+      if (result.sent && result.sent.length > 0) {
+        console.log("[PushNotifications] APNs notification sent successfully to:", token, "notificationId:", notificationId);
+        return { success: true, notificationId };
+      }
+      return { success: false, notificationId };
+    } else if (platform === "android") {
+      if (admin.apps.length > 0) {
+        try {
+          const message = {
+            notification: {
+              title: notification.title,
+              body: notification.body
+            },
+            data: {
+              ...Object.fromEntries(
+                Object.entries(notification.data || {}).map(([k, v]) => [k, String(v)])
+              ),
+              notificationId,
+              actionType: "job_invitation"
+            },
+            token,
+            android: {
+              priority: "high",
+              notification: {
+                clickAction: "OPEN_INVITATIONS",
+                sound: "default",
+                channelId: "job_invitations"
+              }
+            },
+            apns: {
+              payload: {
+                aps: {
+                  category: "JOB_INVITATION",
+                  threadId: notification.data?.jobId || "default"
+                }
+              }
+            }
+          };
+          const response = await admin.messaging().send(message);
+          console.log("[PushNotifications] FCM notification sent successfully:", response, "notificationId:", notificationId);
+          return { success: true, notificationId };
+        } catch (error) {
+          console.error("[PushNotifications] FCM send error:", error);
+          if (error.code === "messaging/invalid-registration-token" || error.code === "messaging/registration-token-not-registered") {
+            console.log("[PushNotifications] Invalid FCM token detected, should be removed:", token);
+          }
+          return { success: false, notificationId };
+        }
+      } else {
+        const fcmServerKey = process.env.FCM_SERVER_KEY;
+        if (!fcmServerKey) {
+          console.warn("[PushNotifications] FCM server key not available");
+          return { success: false, notificationId };
+        }
+        const response = await fetch("https://fcm.googleapis.com/fcm/send", {
+          method: "POST",
+          headers: {
+            "Authorization": `key=${fcmServerKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            to: token,
+            notification: {
+              title: notification.title,
+              body: notification.body
+            },
+            data: {
+              ...notification.data,
+              notificationId,
+              actionType: "job_invitation"
+            }
+          })
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("[PushNotifications] FCM HTTP API error:", errorText);
+          return { success: false, notificationId };
+        }
+        const result = await response.json();
+        if (result.success === 1) {
+          console.log("[PushNotifications] FCM notification sent via HTTP API, notificationId:", notificationId);
+          return { success: true, notificationId };
+        } else {
+          console.error("[PushNotifications] FCM HTTP API failed:", result);
+          return { success: false, notificationId };
+        }
+      }
+    }
+    return { success: false, notificationId };
+  } catch (error) {
+    console.error("[PushNotifications] Unexpected error sending notification:", error);
+    return { success: false, notificationId };
+  }
+}
+async function sendPushNotificationsToContacts(deviceTokens2, notification) {
+  const success = [];
+  const failed = [];
+  const notificationIds = [];
+  const results = await Promise.allSettled(
+    deviceTokens2.map(async ({ contactId, token, platform }) => {
+      const result = await sendPushNotification(token, platform, notification);
+      return { contactId, token, success: result.success, notificationId: result.notificationId };
+    })
+  );
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      if (result.value.success) {
+        success.push(result.value.contactId);
+        notificationIds.push({
+          contactId: result.value.contactId,
+          notificationId: result.value.notificationId,
+          token: result.value.token
+        });
+      } else {
+        failed.push(result.value.contactId);
+      }
+    } else {
+      failed.push(deviceTokens2[index].contactId);
+    }
+  });
+  return { success, failed, notificationIds };
+}
+initializeAPNs();
+initializeFCM();
+
+// server/routes.ts
+import { format as format2 } from "date-fns";
 import { z as z4 } from "zod";
 var creditService3 = new CreditService(storage);
 var stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-09-30.clover" }) : null;
@@ -2686,7 +3010,13 @@ View your weekly schedule: ${rosterUrl}`;
     }
     let status = "sent";
     let twilioSid = null;
-    if (twilioClient && fromNumber) {
+    if (contact.hasLogin) {
+      console.log(
+        `[Messaging] Contact ${contact.id} (${contact.firstName} ${contact.lastName}) has login enabled - creating message in portal only (no SMS)`
+      );
+      twilioSid = null;
+      status = "sent";
+    } else if (twilioClient && fromNumber) {
       try {
         const e164Phone = constructE164Phone(contact.countryCode || "US", contact.phone);
         const twilioMessage = await twilioClient.messages.create({
@@ -2712,9 +3042,11 @@ View your weekly schedule: ${rosterUrl}`;
       twilioSid
     });
     if (status === "sent") {
-      sentCount += 1;
+      if (!contact.hasLogin) {
+        sentCount += 1;
+      }
       console.log(
-        `[Messaging] Message sent to contact ${contact.id} (${contact.firstName} ${contact.lastName}) \u2014 campaign ${campaign.id}`
+        `[Messaging] Message ${contact.hasLogin ? "created in portal" : "sent"} to contact ${contact.id} (${contact.firstName} ${contact.lastName}) \u2014 campaign ${campaign.id}`
       );
     } else {
       console.warn(
@@ -3063,6 +3395,36 @@ async function syncJobToCalendars(userId, job) {
   return Promise.resolve();
 }
 async function registerRoutes(app2) {
+  app2.post("/log", express.json(), async (req, res) => {
+    try {
+      const { message, level = "error", metadata = {} } = req.body;
+      if (!message) {
+        return res.status(400).json({ error: "message is required" });
+      }
+      const logMessage = `[RemoteLog ${level.toUpperCase()}] ${message}`;
+      if (level === "error") {
+        console.error(logMessage, metadata);
+      } else if (level === "warn") {
+        console.warn(logMessage, metadata);
+      } else {
+        console.log(logMessage, metadata);
+      }
+      res.json({ success: true, received: true });
+    } catch (error) {
+      console.error("[Log] Error processing log request:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  app2.get("/.well-known/apple-app-site-association", (req, res, next) => {
+    const aasaPath = path.join(import.meta.dirname, "public", ".well-known", "apple-app-site-association");
+    res.setHeader("Content-Type", "application/json");
+    res.sendFile(aasaPath, (err) => {
+      if (err) {
+        console.error("Error serving AASA file:", err);
+        res.status(404).json({ error: "AASA file not found" });
+      }
+    });
+  });
   app2.use("/attached_assets", express.static(path.join(process.cwd(), "attached_assets")));
   app2.use("/api/auth", auth_routes_default);
   app2.use("/api/mobile/auth", mobile_auth_routes_default);
@@ -3087,8 +3449,8 @@ async function registerRoutes(app2) {
       console.error("Failed to ensure default platform admin", error);
     }
   }
-  const sanitizeAdmin = (admin) => {
-    const { password, ...safeAdmin } = admin;
+  const sanitizeAdmin = (admin2) => {
+    const { password, ...safeAdmin } = admin2;
     return safeAdmin;
   };
   await ensureDefaultPlatformAdmin();
@@ -4258,6 +4620,146 @@ async function registerRoutes(app2) {
       res.status(500).json({ message: error.message });
     }
   });
+  app2.post("/api/contact/device-token", requireContactAuth, async (req, res) => {
+    try {
+      const contact = req.contact;
+      const { token, platform } = req.body;
+      if (!token || !platform) {
+        return res.status(400).json({ message: "Token and platform are required" });
+      }
+      if (!["ios", "android"].includes(platform)) {
+        return res.status(400).json({ message: "Platform must be 'ios' or 'android'" });
+      }
+      const tokenStr = String(token).trim();
+      if (platform === "ios") {
+        const isValid = /^[0-9a-fA-F]{64}$/.test(tokenStr);
+        if (!isValid) {
+          console.error(`[DeviceToken] Invalid iOS token format!`);
+          console.error(`Token: ${tokenStr}`);
+          console.error(`Length: ${tokenStr.length} (expected 64)`);
+          return res.status(400).json({
+            message: `Invalid iOS device token format. Expected 64 hexadecimal characters, got ${tokenStr.length} characters. Token: ${tokenStr.substring(0, 20)}...`
+          });
+        }
+        console.log(`[DeviceToken] \u2705 Valid iOS token (64 hex chars): ${tokenStr.substring(0, 20)}...${tokenStr.substring(44)}`);
+      } else if (platform === "android") {
+        if (tokenStr.length < 50) {
+          console.error(`[DeviceToken] Invalid Android token length!`);
+          console.error(`Token: ${tokenStr}`);
+          console.error(`Length: ${tokenStr.length} (expected at least 50)`);
+          return res.status(400).json({
+            message: `Invalid Android device token format. Token too short: ${tokenStr.length} characters.`
+          });
+        }
+        console.log(`[DeviceToken] \u2705 Valid Android token (${tokenStr.length} chars): ${tokenStr.substring(0, 20)}...${tokenStr.substring(tokenStr.length - 20)}`);
+      }
+      await storage.saveDeviceToken(contact.id, tokenStr, platform);
+      console.log(`[DeviceToken] Registered ${platform} token for contact ${contact.id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Register device token error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  app2.delete("/api/contact/device-token", requireContactAuth, async (req, res) => {
+    try {
+      const { token } = req.body;
+      if (!token) {
+        return res.status(400).json({ message: "Token is required" });
+      }
+      await storage.removeDeviceToken(token);
+      console.log(`[DeviceToken] Removed token for contact`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Remove device token error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  app2.post("/api/contact/push-notification/delivered", requireContactAuth, async (req, res) => {
+    try {
+      const contact = req.contact;
+      const { notificationId } = req.body;
+      if (!notificationId) {
+        return res.status(400).json({ message: "notificationId is required" });
+      }
+      const delivery = await storage.getPushNotificationDeliveryByNotificationId(notificationId);
+      if (!delivery) {
+        return res.status(404).json({ message: "Notification delivery record not found" });
+      }
+      if (delivery.contactId !== contact.id) {
+        return res.status(403).json({ message: "This notification does not belong to you" });
+      }
+      await storage.updatePushNotificationDelivery(delivery.id, {
+        status: "delivered",
+        deliveredAt: /* @__PURE__ */ new Date()
+      });
+      console.log(`[PushNotification] Delivery confirmed for notification ${notificationId} (contact ${contact.id})`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Push notification delivery receipt error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  app2.post("/api/contact/push-notification/action", requireContactAuth, async (req, res) => {
+    try {
+      const contact = req.contact;
+      const { notificationId, action, jobId } = req.body;
+      if (!notificationId || !action || !jobId) {
+        return res.status(400).json({ message: "notificationId, action, and jobId are required" });
+      }
+      if (!["accept", "decline"].includes(action)) {
+        return res.status(400).json({ message: "action must be 'accept' or 'decline'" });
+      }
+      const delivery = await storage.getPushNotificationDeliveryByNotificationId(notificationId);
+      if (!delivery) {
+        return res.status(404).json({ message: "Notification delivery record not found" });
+      }
+      if (delivery.contactId !== contact.id) {
+        return res.status(403).json({ message: "This notification does not belong to you" });
+      }
+      if (delivery.jobId !== jobId) {
+        return res.status(400).json({ message: "jobId does not match notification" });
+      }
+      const organizationId = contact.organizationId;
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+      let availability2 = await storage.getAvailabilityForContact(jobId, contact.id, organizationId);
+      if (!availability2) {
+        availability2 = await storage.createAvailability(organizationId, {
+          contactId: contact.id,
+          jobId,
+          status: action === "accept" ? "confirmed" : "declined"
+        });
+      } else {
+        await storage.updateAvailability(availability2.id, {
+          status: action === "accept" ? "confirmed" : "declined"
+        });
+      }
+      if (action === "accept") {
+        await storage.updateContact(contact.id, { status: "on_job" });
+      } else if (action === "decline") {
+        await storage.updateContact(contact.id, { status: "free" });
+      }
+      const parsed = { status: action === "accept" ? "confirmed" : "declined" };
+      await sendAcknowledgementSMS(organizationId, contact, job, parsed, contact.userId);
+      if (delivery.status === "sent") {
+        await storage.updatePushNotificationDelivery(delivery.id, {
+          status: "delivered",
+          deliveredAt: /* @__PURE__ */ new Date()
+        });
+      }
+      console.log(`[PushNotification] Action ${action} processed for notification ${notificationId} (contact ${contact.id}, job ${jobId})`);
+      res.json({
+        success: true,
+        status: action === "accept" ? "confirmed" : "declined"
+      });
+    } catch (error) {
+      console.error("Push notification action error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
   app2.get("/api/reports/resource-allocation", requireAuth, async (req, res) => {
     try {
       const userId = req.user.id;
@@ -4582,24 +5084,117 @@ async function registerRoutes(app2) {
       if (!trimmedContacts.length) {
         return res.status(400).json({ message: "Insufficient SMS credits to send messages" });
       }
+      const trimmedContactIds = trimmedContacts.map((c) => c.id);
+      const deviceTokens2 = await storage.getDeviceTokensForContacts(trimmedContactIds);
+      const contactsWithTokens = deviceTokens2.map((dt) => ({
+        contactId: dt.contactId,
+        token: dt.token,
+        platform: dt.platform
+      }));
+      const availabilityMap = /* @__PURE__ */ new Map();
+      for (const contact of trimmedContacts) {
+        const availability2 = await storage.getAvailabilityForContact(jobId, contact.id, organizationId);
+        if (availability2) {
+          availabilityMap.set(contact.id, availability2.id);
+        }
+      }
+      let contactsToSms = [...trimmedContacts];
+      let pushSuccessCount = 0;
+      let pushFailedCount = 0;
+      if (contactsWithTokens.length > 0) {
+        const formattedDate = format2(new Date(job.startTime), "MMM d, yyyy 'at' h:mm a");
+        const notificationTitle = "New Job Invitation";
+        const notificationBody = `${job.name} - ${formattedDate}`;
+        const pushResult = await sendPushNotificationsToContacts(
+          contactsWithTokens,
+          {
+            title: notificationTitle,
+            body: notificationBody,
+            data: {
+              type: "job_invitation",
+              jobId: job.id,
+              action: "view_invitations"
+            }
+          }
+        );
+        pushSuccessCount = pushResult.success.length;
+        pushFailedCount = pushResult.failed.length;
+        for (const { contactId, notificationId, token } of pushResult.notificationIds) {
+          const contact = trimmedContacts.find((c) => c.id === contactId);
+          if (contact) {
+            await storage.createPushNotificationDelivery({
+              contactId,
+              jobId: job.id,
+              campaignId: campaign.id,
+              deviceToken: token,
+              notificationId,
+              status: "sent"
+            });
+          }
+        }
+        setTimeout(async () => {
+          try {
+            const undelivered = await storage.getUndeliveredNotifications(30);
+            const undeliveredForThisCampaign = undelivered.filter(
+              (d) => d.campaignId === campaign.id && d.jobId === job.id
+            );
+            if (undeliveredForThisCampaign.length > 0) {
+              console.log(`[SendMessage] ${undeliveredForThisCampaign.length} push notifications not delivered after 30 seconds, sending SMS fallback`);
+              const undeliveredContactIds = new Set(undeliveredForThisCampaign.map((d) => d.contactId));
+              const contactsNeedingSMS = trimmedContacts.filter((c) => undeliveredContactIds.has(c.id));
+              for (const delivery of undeliveredForThisCampaign) {
+                await storage.updatePushNotificationDelivery(delivery.id, {
+                  status: "sms_fallback",
+                  smsFallbackSentAt: /* @__PURE__ */ new Date()
+                });
+              }
+              if (contactsNeedingSMS.length > 0 && twilioClient && fromNumber) {
+                const baseUrlFromRequest2 = `${req.protocol}://${req.get("host")}`;
+                const rosterBaseUrl2 = (process.env.PUBLIC_BASE_URL || baseUrlFromRequest2).replace(/\/$/, "");
+                await scheduleBatchedMessages(contactsNeedingSMS, {
+                  job,
+                  template,
+                  campaign,
+                  organizationId,
+                  userId,
+                  availableCredits: contactsNeedingSMS.length,
+                  twilioClient,
+                  fromNumber,
+                  rosterBaseUrl: rosterBaseUrl2
+                });
+              }
+            }
+          } catch (error) {
+            console.error("[SendMessage] Error checking undelivered notifications:", error);
+          }
+        }, 3e4);
+        const pushSuccessSet = new Set(pushResult.success);
+        contactsToSms = trimmedContacts.filter((contact) => !pushSuccessSet.has(contact.id));
+        console.log(`[SendMessage] Push notifications: ${pushSuccessCount} sent, ${pushFailedCount} failed. SMS will be sent to ${contactsToSms.length} contacts immediately, and to push recipients if not delivered within 30 seconds.`);
+      }
       const baseUrlFromRequest = `${req.protocol}://${req.get("host")}`;
       const rosterBaseUrl = (process.env.PUBLIC_BASE_URL || baseUrlFromRequest).replace(/\/$/, "");
-      await scheduleBatchedMessages(trimmedContacts, {
-        job,
-        template,
-        campaign,
-        organizationId,
-        userId,
-        availableCredits: maxDeliverable,
-        twilioClient,
-        fromNumber,
-        rosterBaseUrl
-      });
+      if (contactsToSms.length > 0) {
+        await scheduleBatchedMessages(contactsToSms, {
+          job,
+          template,
+          campaign,
+          organizationId,
+          userId,
+          availableCredits: contactsToSms.length,
+          twilioClient,
+          fromNumber,
+          rosterBaseUrl
+        });
+      }
       res.json({
         success: true,
         campaign,
         queuedContacts: trimmedContacts.map((contact) => contact.id),
         totalQueued: trimmedContacts.length,
+        pushNotificationsSent: pushSuccessCount,
+        pushNotificationsFailed: pushFailedCount,
+        smsQueued: contactsToSms.length,
         batchSize: MESSAGE_BATCH_SIZE,
         batchDelayMinutes: MESSAGE_BATCH_DELAY_MS / 6e4
       });
@@ -5669,12 +6264,12 @@ Additional Comments: ${comments}` : feedbackMessage;
       if (!adminId) {
         return res.status(401).json({ message: "Not authenticated" });
       }
-      const admin = await storage.getAdminUser(adminId);
-      if (!admin) {
+      const admin2 = await storage.getAdminUser(adminId);
+      if (!admin2) {
         delete req.session.adminId;
         return res.status(401).json({ message: "Not authenticated" });
       }
-      req.admin = admin;
+      req.admin = admin2;
       next();
     } catch (error) {
       console.error("Admin middleware error:", error);
@@ -6242,16 +6837,16 @@ Additional Comments: ${comments}` : feedbackMessage;
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
       }
-      const admin = await storage.getAdminUserByEmail(email);
-      if (!admin) {
+      const admin2 = await storage.getAdminUserByEmail(email);
+      if (!admin2) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
-      const validPassword = await bcrypt3.compare(password, admin.password);
+      const validPassword = await bcrypt3.compare(password, admin2.password);
       if (!validPassword) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
-      req.session.adminId = admin.id;
-      res.json({ success: true, admin: sanitizeAdmin(admin) });
+      req.session.adminId = admin2.id;
+      res.json({ success: true, admin: sanitizeAdmin(admin2) });
     } catch (error) {
       console.error("Admin login error:", error);
       res.status(500).json({ message: error.message || "Failed to login" });
@@ -6267,12 +6862,12 @@ Additional Comments: ${comments}` : feedbackMessage;
       if (!adminId) {
         return res.status(401).json({ message: "Not authenticated" });
       }
-      const admin = await storage.getAdminUser(adminId);
-      if (!admin) {
+      const admin2 = await storage.getAdminUser(adminId);
+      if (!admin2) {
         delete req.session.adminId;
         return res.status(401).json({ message: "Not authenticated" });
       }
-      res.json({ admin: sanitizeAdmin(admin) });
+      res.json({ admin: sanitizeAdmin(admin2) });
     } catch (error) {
       console.error("Admin auth me error:", error);
       res.status(500).json({ message: error.message });
@@ -6287,13 +6882,13 @@ Additional Comments: ${comments}` : feedbackMessage;
       if (typeof newPassword !== "string" || newPassword.length < 8) {
         return res.status(400).json({ message: "New password must be at least 8 characters" });
       }
-      const admin = req.admin;
-      const valid = await bcrypt3.compare(currentPassword, admin.password);
+      const admin2 = req.admin;
+      const valid = await bcrypt3.compare(currentPassword, admin2.password);
       if (!valid) {
         return res.status(400).json({ message: "Current password is incorrect" });
       }
       const hashedPassword = await bcrypt3.hash(newPassword, 10);
-      const updatedAdmin = await storage.updateAdminUser(admin.id, { password: hashedPassword });
+      const updatedAdmin = await storage.updateAdminUser(admin2.id, { password: hashedPassword });
       res.json({ success: true, admin: sanitizeAdmin(updatedAdmin) });
     } catch (error) {
       console.error("Admin change password error:", error);

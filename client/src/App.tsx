@@ -154,22 +154,24 @@ function UserApp() {
           isPublicRoute 
             ? "" 
             : isMobileLayout
-            ? "overflow-y-auto overflow-x-hidden mobile-container"
+            ? "mobile-main-container"
             : "mx-auto max-w-screen-2xl px-6 py-8"
         )}
-        style={isMobileLayout && !isPublicRoute ? {
-          paddingTop: `calc(2rem + 2rem + env(safe-area-inset-top, 0px))`, // 2rem for header (h-8 = 32px) + 2rem for content spacing
-          paddingBottom: `calc(2rem + env(safe-area-inset-bottom, 0px))`,
-          paddingLeft: `calc(0.75rem + env(safe-area-inset-left, 0px))`,
-          paddingRight: `calc(0.75rem + env(safe-area-inset-right, 0px))`,
-        } : undefined}
       >
-        <div className={cn(
-          isMobileLayout && !isPublicRoute ? "w-full max-w-full overflow-x-hidden" : ""
-        )}>
-          {!isPublicRoute && !isMobileLayout && <PageBreadcrumbs />}
-        <UserRouter />
-        </div>
+        {isMobileLayout && !isPublicRoute ? (
+          <>
+            <div className="mobile-content-spacer" />
+            <div className="mobile-content-padding">
+              <UserRouter />
+            </div>
+            <div className="mobile-footer-spacer" />
+          </>
+        ) : (
+          <>
+            {!isPublicRoute && !isMobileLayout && <PageBreadcrumbs />}
+            <UserRouter />
+          </>
+        )}
       </main>
       
       {/* Mobile Tab Bar (native only) - Fixed at bottom */}
@@ -414,21 +416,21 @@ function ContactApp() {
           isPublicRoute 
             ? "" 
             : isMobileLayout
-            ? "overflow-y-auto overflow-x-hidden mobile-container"
+            ? "mobile-main-container"
             : "mx-auto max-w-screen-2xl px-6 py-8"
         )}
-        style={isMobileLayout && !isPublicRoute ? {
-          paddingTop: `calc(2rem + 2rem + env(safe-area-inset-top, 0px))`, // 2rem for header (h-8 = 32px) + 2rem for content spacing
-          paddingBottom: `calc(2rem + env(safe-area-inset-bottom, 0px))`,
-          paddingLeft: `calc(0.75rem + env(safe-area-inset-left, 0px))`,
-          paddingRight: `calc(0.75rem + env(safe-area-inset-right, 0px))`,
-        } : undefined}
       >
-        <div className={cn(
-          isMobileLayout && !isPublicRoute ? "w-full max-w-full overflow-x-hidden" : ""
-        )}>
+        {isMobileLayout && !isPublicRoute ? (
+          <>
+            <div className="mobile-content-spacer" />
+            <div className="mobile-content-padding">
+              <ContactRouter />
+            </div>
+            <div className="mobile-footer-spacer" />
+          </>
+        ) : (
           <ContactRouter />
-        </div>
+        )}
       </main>
       
       {/* Mobile Tab Bar (native only) - Fixed at bottom */}

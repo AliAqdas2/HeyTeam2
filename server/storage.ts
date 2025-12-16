@@ -20,6 +20,8 @@ import {
   type Feedback, type InsertFeedback,
   type PlatformSettings, type InsertPlatformSettings,
   type JobSkillRequirement, type InsertJobSkillRequirement,
+  type DeviceToken, type InsertDeviceToken,
+  type PushNotificationDelivery, type InsertPushNotificationDelivery,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -172,6 +174,18 @@ export interface IStorage {
   createFeedback(organizationId: string, userId: string, feedback: InsertFeedback): Promise<Feedback>;
   getAllFeedback(): Promise<Feedback[]>;
   updateFeedbackStatus(id: string, status: string): Promise<Feedback>;
+  
+  // Device token methods
+  saveDeviceToken(contactId: string, token: string, platform: string): Promise<void>;
+  getDeviceTokensForContact(contactId: string): Promise<DeviceToken[]>;
+  getDeviceTokensForContacts(contactIds: string[]): Promise<DeviceToken[]>;
+  removeDeviceToken(token: string): Promise<void>;
+  
+  // Push Notification Delivery methods
+  createPushNotificationDelivery(delivery: InsertPushNotificationDelivery): Promise<PushNotificationDelivery>;
+  updatePushNotificationDelivery(id: string, updates: Partial<InsertPushNotificationDelivery>): Promise<PushNotificationDelivery>;
+  getPushNotificationDeliveryByNotificationId(notificationId: string): Promise<PushNotificationDelivery | undefined>;
+  getUndeliveredNotifications(olderThanSeconds: number): Promise<PushNotificationDelivery[]>;
 }
 
 export class MemStorage implements IStorage {

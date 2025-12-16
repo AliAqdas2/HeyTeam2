@@ -4,7 +4,6 @@ import { Avatar, AvatarFallback } from "./ui/avatar";
 import { useQuery } from "@tanstack/react-query";
 import { getContactQueryFn } from "@/lib/contactApiClient";
 import { Capacitor } from "@capacitor/core";
-import logoImage from "@assets/heyteam 1_1760877824955.png";
 
 export function ContactMobileHeader() {
   const [location] = useLocation();
@@ -46,25 +45,11 @@ export function ContactMobileHeader() {
   };
 
   return (
-    <header 
-      className="fixed left-0 right-0 z-50 border-b bg-card flex items-center px-2"
-      style={{
-        top: 0,
-        height: "calc(2rem + env(safe-area-inset-top, 0px))",
-        paddingTop: "env(safe-area-inset-top, 0px)",
-      }}
-    >
-      <div className="flex items-center justify-between w-full h-8">
-        {/* Logo/Title */}
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <Link href="/contact/dashboard">
-            <img 
-              src={logoImage} 
-              alt="HeyTeam" 
-              className="h-5 w-auto"
-            />
-          </Link>
-          <h1 className="text-base font-semibold truncate ml-2">
+    <header className="mobile-header-fixed">
+      <div className="flex items-center justify-between px-4" style={{ height: "3.5rem" }}>
+        {/* Page Title */}
+        <div className="flex items-center flex-1 min-w-0">
+          <h1 className="text-2xl font-semibold truncate">
             {getPageTitle()}
           </h1>
         </div>
@@ -74,10 +59,10 @@ export function ContactMobileHeader() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-full p-0"
+            className="h-10 w-10 rounded-full p-0"
           >
-            <Avatar className="h-7 w-7">
-              <AvatarFallback className="text-[10px] bg-primary text-primary-foreground">
+            <Avatar className="h-10 w-10">
+              <AvatarFallback className="text-sm bg-primary text-primary-foreground">
                 {getContactInitials()}
               </AvatarFallback>
             </Avatar>

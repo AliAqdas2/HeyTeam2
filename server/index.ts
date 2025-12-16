@@ -10,7 +10,6 @@ const MemoryStore = createMemoryStore(session);
 
 const app = express();
 
-// CORS configuration - allow all origins, no restrictions
 app.use(cors({ 
   origin: true, // Allow any origin
   credentials: true, // Allow cookies/sessions
@@ -31,6 +30,7 @@ app.use(cors({
     "X-User-ID",
   ]
 }));
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));

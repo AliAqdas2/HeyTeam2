@@ -229,12 +229,18 @@ router.post("/logout", (req: Request, res: Response) => {
   });
 });
 
+// Mobile logout (no session, just acknowledge)
+router.post("/mobile/logout", (req: Request, res: Response) => {
+  // For mobile apps using X-User-ID or X-Contact-ID headers, 
+  // there's no server-side session to destroy
+  // Just acknowledge the logout
+  res.json({ message: "Logged out successfully" });
+});
+
 // Get current user or contact
 router.get("/me", async (req: Request, res: Response) => {
   try {
-    console.log("===== /me endpoint hit =====");
-    console.log("Incoming headers:", req.headers);
-    console.log("Session at start:", req.session);
+
 
     // Helper function to get user from session
     const getUserFromSession = async (session: any) => {
@@ -288,18 +294,16 @@ router.get("/me", async (req: Request, res: Response) => {
 
     // 2. Fallback for Capacitor (manual cookie)
     const rawCookie = req.headers.cookie;
-    console.log("[/me] Raw Cookie Header:", rawCookie);
+
 
     if (rawCookie) {
       const match = rawCookie.match(/connect\.sid=([^;]+)/);
 
       if (match) {
         const sid = match[1];
-        console.log("[/me] Extracted session ID:", sid);
 
         req.sessionID = sid;
 
-        console.log("[/me] Attempting manual session restore...");
 
         return req.sessionStore.get(sid, async (err, session) => {
           if (err) {

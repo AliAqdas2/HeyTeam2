@@ -51,18 +51,11 @@ export function MobileHeader() {
   };
 
   return (
-    <header 
-      className="fixed left-0 right-0 z-50 border-b bg-card flex items-center px-2"
-      style={{
-        top: 0,
-        height: "calc(2rem + env(safe-area-inset-top, 0px))",
-        paddingTop: "env(safe-area-inset-top, 0px)",
-      }}
-    >
-      <div className="flex items-center justify-between w-full h-8">
+    <header className="mobile-header-fixed">
+      <div className="flex items-center justify-between px-4" style={{ height: "3.5rem" }}>
         {/* Page Title */}
         <div className="flex items-center flex-1 min-w-0">
-          <h1 className="text-lg font-semibold truncate">
+          <h1 className="text-2xl font-semibold truncate">
             {getPageTitle()}
           </h1>
         </div>
@@ -72,10 +65,10 @@ export function MobileHeader() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-full p-0"
+            className="h-10 w-10 rounded-full p-0"
           >
-            <Avatar className="h-7 w-7">
-              <AvatarFallback className="text-[10px] bg-primary text-primary-foreground">
+            <Avatar className="h-10 w-10">
+              <AvatarFallback className="text-sm bg-primary text-primary-foreground">
                 {getUserInitials()}
               </AvatarFallback>
             </Avatar>

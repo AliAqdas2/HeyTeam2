@@ -73,6 +73,10 @@ export const contacts = pgTable("contacts", {
   tags: text("tags").array().default(sql`ARRAY[]::text[]`),
   status: text("status").notNull().default("free"), // "free", "on_job", "off_shift"
   rosterToken: varchar("roster_token").unique(), // Unique token for viewing roster
+  password: text("password"), // Password for contact login (nullable, only set when hasLogin is true)
+  hasLogin: boolean("has_login").notNull().default(false), // Flag to indicate if contact has login enabled
+  emailVerified: boolean("email_verified").notNull().default(false), // Email verification status
+  lastLoginAt: timestamp("last_login_at"), // Timestamp of last login
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -280,6 +284,15 @@ export const platformSettings = pgTable("platform_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const deviceTokens = pgTable("device_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: 'cascade' }),
+  token: text("token").notNull().unique(),
+  platform: text("platform").notNull(), // "ios" | "android"
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({
   id: true,
   createdAt: true,
@@ -484,5 +497,35 @@ export const insertFeedbackSchema = createInsertSchema(feedback).omit({
   status: true,
 });
 
+export const insertDeviceTokenSchema = createInsertSchema(deviceTokens).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
 export type Feedback = typeof feedback.$inferSelect;
+
+export type InsertDeviceToken = z.infer<typeof insertDeviceTokenSchema>;
+export type DeviceToken = typeof deviceTokens.$inferSelect;
+
+export const pushNotificationDeliveries = pgTable("push_notification_deliveries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: 'cascade' }),
+  jobId: varchar("job_id").notNull().references(() => jobs.id, { onDelete: 'cascade' }),
+  campaignId: varchar("campaign_id").references(() => campaigns.id, { onDelete: 'set null' }),
+  deviceToken: text("device_token").notNull(),
+  notificationId: text("notification_id").notNull().unique(), // Unique ID for this notification
+  status: text("status").notNull().default("sent"), // "sent", "delivered", "failed", "sms_fallback"
+  deliveredAt: timestamp("delivered_at"),
+  smsFallbackSentAt: timestamp("sms_fallback_sent_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertPushNotificationDeliverySchema = createInsertSchema(pushNotificationDeliveries).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertPushNotificationDelivery = z.infer<typeof insertPushNotificationDeliverySchema>;
+export type PushNotificationDelivery = typeof pushNotificationDeliveries.$inferSelect;
