@@ -6,11 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, Phone, Mail, MessageSquare, Download, Calendar } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Phone, Mail, MessageSquare, Download, Calendar, X, UserPlus, Megaphone } from "lucide-react";
 import { format } from "date-fns";
 import type { Job, Contact, Availability, Message, JobSkillRequirement } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { MessageLogsTable } from "@/components/message-logs-table";
+import { InviteToJobDialog } from "@/components/invite-to-job-dialog";
+import { BroadcastMessageDialog } from "@/components/broadcast-message-dialog";
+import { ManualAddContactDialog } from "@/components/manual-add-contact-dialog";
 
 type AvailabilityWithContact = Availability & { contact: Contact };
 type JobWithDetails = Job & {
@@ -32,6 +38,9 @@ function DropZone({
   availability,
   onSelect,
   onDrop,
+  jobId,
+  onCancelled,
+  onBroadcast,
 }: {
   columnId: string;
   label: string;
@@ -39,6 +48,9 @@ function DropZone({
   availability: AvailabilityWithContact[];
   onSelect: (contact: Contact) => void;
   onDrop: (availabilityId: string, targetStatus: string) => void;
+  jobId?: string;
+  onCancelled?: () => void;
+  onBroadcast?: () => void;
 }) {
   const [isOver, setIsOver] = useState(false);
 
@@ -75,10 +87,24 @@ function DropZone({
     >
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">{label}</h3>
-          <Badge variant={variant} data-testid={`badge-count-${columnId}`}>
-            {availability.length}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold">{label}</h3>
+            <Badge variant={variant} data-testid={`badge-count-${columnId}`}>
+              {availability.length}
+            </Badge>
+          </div>
+          {columnId === "confirmed" && availability.length > 0 && onBroadcast && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 h-7 text-xs"
+              onClick={onBroadcast}
+              data-testid="button-broadcast-message"
+            >
+              <Megaphone className="h-3 w-3" />
+              Message
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -93,6 +119,8 @@ function DropZone({
               availability={avail}
               onSelect={() => onSelect(avail.contact)}
               onStatusChange={(newStatus) => onDrop(avail.id, newStatus)}
+              jobId={jobId}
+              onCancelled={onCancelled}
             />
           ))
         )}
@@ -106,6 +134,9 @@ const normalizeSkill = (value: string | null | undefined) => value?.trim().toLow
 export default function RosterBoard() {
   const [, params] = useRoute("/jobs/:id/schedule");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [showBroadcastDialog, setShowBroadcastDialog] = useState(false);
+  const [showManualAddDialog, setShowManualAddDialog] = useState(false);
   const { toast } = useToast();
 
   const { data: job, isLoading } = useQuery<JobWithDetails>({
@@ -211,14 +242,23 @@ export default function RosterBoard() {
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        <Link href={`/jobs/${job.id}/send`}>
-          <a data-testid="link-send-message">
-            <Button className="gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Send Message
-            </Button>
-          </a>
-        </Link>
+        <Button
+          className="gap-2"
+          onClick={() => setShowInviteDialog(true)}
+          data-testid="button-invite-to-job"
+        >
+          <UserPlus className="h-4 w-4" />
+          Invite to Job
+        </Button>
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => setShowManualAddDialog(true)}
+          data-testid="button-add-contact"
+        >
+          <UserPlus className="h-4 w-4" />
+          Add Contact
+        </Button>
         <Link href={`/jobs/${job.id}/edit`}>
           <a data-testid="link-edit-job">
             <Button variant="outline">Edit Job</Button>
@@ -288,6 +328,8 @@ export default function RosterBoard() {
         </Card>
       )}
 
+      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {statusColumns.map((column) => (
           <DropZone
@@ -303,9 +345,15 @@ export default function RosterBoard() {
                 status: targetStatus,
               });
             }}
+            jobId={job.id}
+            onCancelled={() => {
+              queryClient.invalidateQueries({ queryKey: ["/api/jobs", params?.id, "roster"] });
+            }}
+            onBroadcast={() => setShowBroadcastDialog(true)}
           />
         ))}
       </div>
+      {params?.id && <MessageLogsTable jobId={params.id} />}
 
       <Sheet open={!!selectedContact} onOpenChange={(open) => !open && setSelectedContact(null)}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
@@ -378,6 +426,31 @@ export default function RosterBoard() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Dialogs */}
+      <InviteToJobDialog
+        open={showInviteDialog}
+        onOpenChange={setShowInviteDialog}
+        jobId={job.id}
+        jobName={job.name}
+        existingAvailability={job.availability}
+      />
+
+      <BroadcastMessageDialog
+        open={showBroadcastDialog}
+        onOpenChange={setShowBroadcastDialog}
+        jobId={job.id}
+        jobName={job.name}
+        confirmedContacts={groupedAvailability.confirmed || []}
+      />
+
+      <ManualAddContactDialog
+        open={showManualAddDialog}
+        onOpenChange={setShowManualAddDialog}
+        jobId={job.id}
+        jobName={job.name}
+        existingAvailability={job.availability}
+      />
     </div>
   );
 }
@@ -424,13 +497,48 @@ function ContactCard({
   availability,
   onSelect,
   onStatusChange,
+  jobId,
+  onCancelled,
 }: {
   availability: AvailabilityWithContact;
   onSelect: () => void;
   onStatusChange: (status: string) => void;
+  jobId?: string;
+  onCancelled?: () => void;
 }) {
   const { contact } = availability;
   const [isDragging, setIsDragging] = useState(false);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [selectedReason, setSelectedReason] = useState("illness");
+  const [customReason, setCustomReason] = useState("");
+  const { toast } = useToast();
+
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      if (!jobId) throw new Error("jobId missing");
+      const body = {
+        contactId: contact.id,
+        reason: selectedReason === "custom" ? customReason : selectedReason,
+      };
+      const response = await apiRequest("POST", `/api/jobs/${jobId}/cancel-contact`, body);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Contact cancelled",
+        description: "Looking for a replacement.",
+      });
+      setIsCancelDialogOpen(false);
+      onCancelled?.();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Cancel failed",
+        description: error?.message || "Unable to cancel this contact",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.effectAllowed = "move";
@@ -465,13 +573,89 @@ function ContactCard({
             </div>
             <div className="text-xs text-muted-foreground truncate">{contact.phone}</div>
           </div>
+          {jobId && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsCancelDialogOpen(true);
+              }}
+              data-testid={`button-cancel-contact-${contact.id}`}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         {availability.shiftPreference && (
           <Badge variant="secondary" className="mt-2 text-xs">
             {availability.shiftPreference}
           </Badge>
         )}
+        {availability.status === "cancelled" && (
+          <Badge variant="destructive" className="mt-2 text-xs">
+            Cancelled
+          </Badge>
+        )}
       </CardContent>
+
+      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel this contact?</DialogTitle>
+            <DialogDescription>
+              Select a reason. A replacement will be contacted from the original pool.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex flex-col gap-2">
+              <Button
+                variant={selectedReason === "illness" ? "default" : "outline"}
+                onClick={() => setSelectedReason("illness")}
+              >
+                Illness
+              </Button>
+              <Button
+                variant={selectedReason === "emergency" ? "default" : "outline"}
+                onClick={() => setSelectedReason("emergency")}
+              >
+                Emergency
+              </Button>
+              <Button
+                variant={selectedReason === "conflict" ? "default" : "outline"}
+                onClick={() => setSelectedReason("conflict")}
+              >
+                Schedule conflict
+              </Button>
+              <Button
+                variant={selectedReason === "custom" ? "default" : "outline"}
+                onClick={() => setSelectedReason("custom")}
+              >
+                Other
+              </Button>
+            </div>
+            {selectedReason === "custom" && (
+              <Textarea
+                placeholder="Enter reason"
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+              />
+            )}
+          </div>
+          <DialogFooter className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsCancelDialogOpen(false)}>
+              Close
+            </Button>
+            <Button
+              onClick={() => cancelMutation.mutate()}
+              disabled={cancelMutation.isPending || (selectedReason === "custom" && !customReason.trim())}
+            >
+              {cancelMutation.isPending ? "Cancelling..." : "Confirm Cancel"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Phone, Mail, UserX, Upload, FileText, Pencil, X, Calendar, Award, Send, Filter, MapPin, MessageSquare, Crown, Shield, User as UserIcon, Trash2, CheckCircle, Briefcase, Clock, Download, Key, Copy, Smartphone, AlertCircle } from "lucide-react";
+import { Plus, Search, Phone, Mail, UserX, Upload, FileText, Pencil, X, Calendar, Award, Send, Filter, MapPin, MessageSquare, Crown, Shield, User as UserIcon, Trash2, CheckCircle, Briefcase, Clock, Download, Key, Copy, Smartphone, AlertCircle, Building2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertContactSchema, type InsertContact, type Contact } from "@shared/schema";
@@ -43,6 +43,7 @@ export default function Contacts() {
   const [qualificationFilter, setQualificationFilter] = useState<string>("");
   const [locationFilter, setLocationFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -98,7 +99,13 @@ export default function Contacts() {
   };
 
   const { data: contacts, isLoading } = useQuery<Contact[]>({
-    queryKey: ["/api/contacts"],
+    queryKey: departmentFilter.length > 0 
+      ? ["/api/contacts", { departmentId: departmentFilter[0] }]
+      : ["/api/contacts"],
+  });
+
+  const { data: departments } = useQuery({
+    queryKey: ["/api/departments"],
   });
 
   const { data: teamMembers, isLoading: membersLoading } = useQuery({
@@ -129,6 +136,10 @@ export default function Contacts() {
     
     // Apply status filter
     const statusMatch = !statusFilter || contact.status === statusFilter;
+    
+    // Note: Department filter is handled by the backend query, so we don't filter here
+    // If multiple departments are selected, we'd need to handle it differently,
+    // but for now we use single select which is handled by the backend
     
     return nameMatch && skillMatch && qualificationMatch && locationMatch && statusMatch;
   });
@@ -521,6 +532,34 @@ export default function Contacts() {
                       data-testid="input-location-filter"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Filter by Department
+                  </label>
+                  <Select
+                    value={departmentFilter.length > 0 ? departmentFilter[0] : "all"}
+                    onValueChange={(value) => {
+                      if (value === "all") {
+                        setDepartmentFilter([]);
+                      } else {
+                        setDepartmentFilter([value]);
+                      }
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-department-filter">
+                      <SelectValue placeholder="All departments" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All departments</SelectItem>
+                      {departments?.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             )}
@@ -966,6 +1005,31 @@ function ContactForm({ contact, onSuccess }: { contact?: Contact | null; onSucce
   const [hasLogin, setHasLogin] = useState(contact?.hasLogin || false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+
+  // Fetch departments for this contact when editing
+  const { data: contactDepartments } = useQuery({
+    queryKey: ["/api/contacts", contact?.id, "departments"],
+    queryFn: async () => {
+      if (!contact?.id) return [];
+      const res = await fetch(`/api/contacts/${contact.id}/departments`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!contact?.id,
+  });
+
+  // Fetch all departments
+  const { data: allDepartments } = useQuery({
+    queryKey: ["/api/departments"],
+  });
+
+  // Sync selected departments with contact departments when editing
+  useEffect(() => {
+    if (contactDepartments) {
+      setSelectedDepartments(contactDepartments.map((d: any) => d.id));
+    }
+  }, [contactDepartments]);
 
   // Sync hasLogin with form value when contact changes
   useEffect(() => {
@@ -1019,18 +1083,6 @@ function ContactForm({ contact, onSuccess }: { contact?: Contact | null; onSucce
     mutationFn: async (data: InsertContact) => {
       const res = await apiRequest("POST", "/api/contacts", data);
       return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-      toast({
-        title: "Contact Added",
-        description: "New contact has been added successfully",
-      });
-      form.reset();
-      setHasLogin(false);
-      setPassword("");
-      setConfirmPassword("");
-      onSuccess();
     },
     onError: () => {
       toast({
@@ -1121,9 +1173,67 @@ function ContactForm({ contact, onSuccess }: { contact?: Contact | null; onSucce
     }
 
     if (isEdit) {
-      updateMutation.mutate(formData);
+      updateMutation.mutate(formData, {
+        onSuccess: async () => {
+          // Handle department assignments for existing contact
+          if (contact?.id && allDepartments) {
+            const previousDepartmentIds = contactDepartments?.map((d: any) => d.id) || [];
+            
+            // Add new departments
+            for (const deptId of selectedDepartments) {
+              if (!previousDepartmentIds.includes(deptId)) {
+                try {
+                  await apiRequest("POST", `/api/departments/${deptId}/contacts/${contact.id}`, {});
+                } catch (err) {
+                  console.error("Failed to assign department", err);
+                }
+              }
+            }
+
+            // Remove departments that were unselected
+            for (const deptId of previousDepartmentIds) {
+              if (!selectedDepartments.includes(deptId)) {
+                try {
+                  await apiRequest("DELETE", `/api/departments/${deptId}/contacts/${contact.id}`, {});
+                } catch (err) {
+                  console.error("Failed to unassign department", err);
+                }
+              }
+            }
+            queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/contacts", contact.id, "departments"] });
+          }
+        },
+      });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(formData, {
+        onSuccess: async (result) => {
+          // Handle department assignments for new contact
+          if (result.id && allDepartments && selectedDepartments.length > 0) {
+            for (const deptId of selectedDepartments) {
+              try {
+                await apiRequest("POST", `/api/departments/${deptId}/contacts/${result.id}`, {});
+              } catch (err) {
+                console.error("Failed to assign department", err);
+              }
+            }
+            queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/contacts", result.id, "departments"] });
+          }
+          // Call the original onSuccess after departments are assigned
+          queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+          toast({
+            title: "Contact Added",
+            description: "New contact has been added successfully",
+          });
+          form.reset();
+          setHasLogin(false);
+          setPassword("");
+          setConfirmPassword("");
+          setSelectedDepartments([]);
+          onSuccess();
+        },
+      });
     }
   };
 
@@ -1467,6 +1577,53 @@ function ContactForm({ contact, onSuccess }: { contact?: Contact | null; onSucce
               </FormItem>
             )}
           />
+
+          {/* Department Assignment */}
+          <FormItem>
+            <FormLabel>Departments</FormLabel>
+            <div className="space-y-2">
+              {allDepartments && allDepartments.length > 0 ? (
+                <div className="space-y-2">
+                  {allDepartments.map((dept: any) => (
+                    <div key={dept.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`dept-${dept.id}`}
+                        checked={selectedDepartments.includes(dept.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedDepartments([...selectedDepartments, dept.id]);
+                          } else {
+                            setSelectedDepartments(selectedDepartments.filter((id) => id !== dept.id));
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor={`dept-${dept.id}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        {dept.name}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No departments available. Create departments first.</p>
+              )}
+              {selectedDepartments.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {selectedDepartments.map((deptId) => {
+                    const dept = allDepartments?.find((d: any) => d.id === deptId);
+                    return dept ? (
+                      <Badge key={deptId} variant="secondary">
+                        {dept.name}
+                      </Badge>
+                    ) : null;
+                  })}
+                </div>
+              )}
+            </div>
+            <FormDescription>Assign this contact to one or more departments</FormDescription>
+          </FormItem>
 
           <FormField
             control={form.control}

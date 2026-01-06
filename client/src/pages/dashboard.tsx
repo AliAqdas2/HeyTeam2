@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, MapPin, Clock, Users, Calendar as CalendarIcon, Search, Trash2 } from "lucide-react";
+import { Plus, MapPin, Clock, Users, Calendar as CalendarIcon, Search, Trash2, Building2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +36,14 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   EUR: "€",
 };
 
+type CancellationSummary = {
+  id: string;
+  jobName: string;
+  contactName: string;
+  reason?: string | null;
+  createdAt: string;
+};
+
 type JobWithAvailability = Job & {
   availabilityCounts: {
     confirmed: number;
@@ -48,13 +57,29 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("");
   const [location, setLocation] = useLocation();
   const { theme } = useTheme();
   const hasShownTourRef = useRef(false);
   const driverInstanceRef = useRef<ReturnType<typeof driver> | null>(null);
 
+  const { data: departments } = useQuery({
+    queryKey: ["/api/departments"],
+  });
+
+  const { data: recentCancellations } = useQuery<CancellationSummary[]>({
+    queryKey: ["/api/cancellations/recent"],
+    initialData: [],
+  });
+
   const { data: jobs, isLoading } = useQuery<JobWithAvailability[]>({
-    queryKey: ["/api/jobs"],
+    queryKey: ["/api/jobs", departmentFilter || "all"],
+    queryFn: async () => {
+      const url = departmentFilter ? `/api/jobs?departmentId=${departmentFilter}` : "/api/jobs";
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to fetch jobs");
+      return response.json();
+    },
     // Keep the jobs list feeling live while you're on the dashboard
     refetchInterval: 5000,
   });
@@ -308,6 +333,28 @@ export default function Dashboard() {
         </Link>
       </div>
 
+      {recentCancellations && recentCancellations.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h3 className="text-lg font-semibold">Recent Cancellations & Replacements</h3>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {recentCancellations.map((item: any) => (
+              <div key={item.id} className="flex items-start justify-between text-sm">
+                <div className="space-y-1">
+                  <div className="font-medium">{item.jobName}</div>
+                  <div className="text-muted-foreground">Contact: {item.contactName}</div>
+                  {item.reason && <div className="text-muted-foreground">Reason: {item.reason}</div>}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {format(new Date(item.createdAt), "MMM d, h:mm a")}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Filters */}
       {jobs && jobs.length > 0 && (
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -342,6 +389,25 @@ export default function Dashboard() {
                 className="h-9 w-[140px]"
                 data-testid="input-date-to"
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Select
+                value={departmentFilter || "all"}
+                onValueChange={(value) => setDepartmentFilter(value === "all" ? "" : value)}
+              >
+                <SelectTrigger className="w-[180px] h-9" data-testid="select-department-filter">
+                  <SelectValue placeholder="All departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All departments</SelectItem>
+                  {departments?.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {(fromDate || toDate) && (
               <Button
@@ -494,6 +560,12 @@ function JobCard({ job }: { job: JobWithAvailability }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmationText, setConfirmationText] = useState("");
 
+  const { data: departments } = useQuery({
+    queryKey: ["/api/departments"],
+  });
+
+  const department = departments?.find((d) => d.id === job.departmentId);
+
   const fillPercentage = job.requiredHeadcount
     ? Math.round((job.availabilityCounts.confirmed / job.requiredHeadcount) * 100)
     : 0;
@@ -530,7 +602,15 @@ function JobCard({ job }: { job: JobWithAvailability }) {
       <CardHeader className="space-y-0 pb-4">
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-semibold text-lg line-clamp-2" data-testid={`text-job-name-${job.id}`}>{job.name}</h3>
-          {isPast && <Badge variant="secondary">Past</Badge>}
+          <div className="flex items-center gap-2">
+            {department && (
+              <Badge variant="outline" className="text-xs">
+                <Building2 className="h-3 w-3 mr-1" />
+                {department.name}
+              </Badge>
+            )}
+            {isPast && <Badge variant="secondary">Past</Badge>}
+          </div>
         </div>
         <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
           <MapPin className="h-3.5 w-3.5" />
@@ -583,15 +663,11 @@ function JobCard({ job }: { job: JobWithAvailability }) {
         </div>
       </CardContent>
       <CardFooter className="flex gap-2 flex-wrap pt-4 border-t">
-        <Link href={`/jobs/${job.id}/schedule`}>
-          <a className="flex-1" data-testid={`link-view-roster-${job.id}`}>
-            <Button variant="default" size="sm" className="w-full">View Schedule</Button>
-          </a>
+        <Link href={`/jobs/${job.id}/schedule`} className="flex-1" data-testid={`link-view-roster-${job.id}`}>
+          <Button variant="default" size="sm" className="w-full">View Schedule</Button>
         </Link>
-        <Link href={`/jobs/${job.id}/edit`}>
-          <a data-testid={`link-edit-job-${job.id}`}>
-            <Button variant="outline" size="sm">Edit</Button>
-          </a>
+        <Link href={`/jobs/${job.id}/edit`} data-testid={`link-edit-job-${job.id}`}>
+          <Button variant="outline" size="sm">Edit</Button>
         </Link>
         
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

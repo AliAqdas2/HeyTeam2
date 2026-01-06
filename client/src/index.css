@@ -2,77 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Mobile safe area styles */
-.mobile-header-fixed {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  background-color: hsl(var(--card));
-  padding-top: env(safe-area-inset-top, 0px);
-  border-bottom: 1px solid hsl(var(--border));
-  /* Prevent scroll/drag on header */
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
-  pointer-events: auto;
-}
-
-.mobile-header-fixed * {
-  /* Re-enable pointer events for interactive elements inside header */
-  pointer-events: auto;
-  touch-action: auto;
-}
-
-.mobile-tab-bar-fixed {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 9999;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  /* Prevent scroll/drag on tab bar */
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
-  pointer-events: auto;
-}
-
-.mobile-tab-bar-fixed * {
-  /* Re-enable pointer events for interactive elements inside tab bar */
-  pointer-events: auto;
-  touch-action: auto;
-}
-
-.mobile-main-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-}
-
-.mobile-content-spacer {
-  height: calc(env(safe-area-inset-top, 0px) + 3.5rem);
-  background-color: hsl(var(--card));
-}
-
-.mobile-footer-spacer {
-  height: calc(env(safe-area-inset-bottom, 0px) + 4rem);
-  background-color: hsl(var(--background));
-}
-
-.mobile-content-padding {
-  padding-left: 0.75rem;
-  padding-right: 0.75rem;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
-}
-
 /* LIGHT MODE */
 :root {
   --button-outline: rgba(0,0,0, .10);
@@ -123,40 +52,36 @@
 
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 240 5% 92%;
+  --secondary: 210 15% 25%;
 
-  --secondary-foreground: 240 10% 4%;
+  --secondary-foreground: 0 0% 100%;
 
-  --secondary-border: 240 6% 86%;
-
-  --muted: 240 5% 94%;
+  --muted: 240 5% 90%;
 
   --muted-foreground: 240 4% 46%;
 
-  --accent: 240 5% 92%;
+  --accent: 240 4% 88%;
 
   --accent-foreground: 240 10% 4%;
 
-  --destructive: 0 72% 51%;
+  --destructive: 0 84% 60%;
 
   --destructive-foreground: 0 0% 100%;
 
-  --input: 240 6% 90%;
-
+  --input: 240 6% 80%;
   --ring: 178 60% 50%;
+  --chart-1: 178 60% 50%;
+  --chart-2: 142 71% 45%;
+  --chart-3: 38 92% 50%;
+  --chart-4: 0 84% 60%;
+  --chart-5: 280 65% 55%;
 
-  --chart-1: 30 80% 55%;
-
-  --chart-2: 160 60% 45%;
-
-  --chart-3: 210 70% 60%;
-
-  --chart-4: 80 60% 50%;
-
-  --chart-5: 340 75% 55%;
-
-  --radius: 0.5rem;
-
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+  --radius: .5rem; /* 8px */
+  --shadow-2xs: 0px 1px 2px 0px hsl(240 10% 4% / 0.05);
+  --shadow-xs: 0px 1px 3px 0px hsl(240 10% 4% / 0.1);
   --shadow-sm: 0px 2px 4px -1px hsl(240 10% 4% / 0.06), 0px 1px 2px -1px hsl(240 10% 4% / 0.1);
   --shadow: 0px 4px 6px -1px hsl(240 10% 4% / 0.1), 0px 2px 4px -2px hsl(240 10% 4% / 0.1);
   --shadow-md: 0px 6px 12px -2px hsl(240 10% 4% / 0.12), 0px 3px 7px -3px hsl(240 10% 4% / 0.1);
@@ -200,9 +125,12 @@
 .dark {
   --button-outline: rgba(255,255,255, .10);
   --badge-outline: rgba(255,255,255, .05);
-  --opaque-button-border-intensity: 8;
-  --elevate-1: rgba(255,255,255, .03);
-  --elevate-2: rgba(255,255,255, .08);
+
+  --opaque-button-border-intensity: 9;  /* In terms of percentages */
+
+  /* Backgrounds applied on top of other backgrounds when hovered/active */
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .09);
 
   --background: 240 10% 4%;
 
@@ -210,217 +138,238 @@
 
   --border: 240 4% 16%;
 
-  --card: 240 4% 10%;
+  --card: 240 6% 10%;
 
   --card-foreground: 0 0% 98%;
 
-  --card-border: 240 4% 12%;
+  --card-border: 240 4% 14%;
 
-  --sidebar: 240 4% 8%;
+  --sidebar: 240 6% 8%;
 
   --sidebar-foreground: 0 0% 98%;
 
-  --sidebar-border: 240 4% 14%;
+  --sidebar-border: 240 4% 12%;
 
-  --sidebar-primary: 178 60% 50%;
+  --sidebar-primary: 178 60% 55%;
 
-  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary-foreground: 240 10% 4%;
 
-  --sidebar-accent: 240 4% 14%;
+  --sidebar-accent: 240 5% 14%;
 
   --sidebar-accent-foreground: 0 0% 98%;
 
-  --sidebar-ring: 178 60% 50%;
+  --sidebar-ring: 178 60% 55%;
 
-  --popover: 240 4% 12%;
+  --popover: 240 6% 12%;
 
   --popover-foreground: 0 0% 98%;
 
-  --popover-border: 240 4% 18%;
+  --popover-border: 240 4% 16%;
 
-  --primary: 178 60% 50%;
+  --primary: 178 60% 55%;
 
-  --primary-foreground: 0 0% 100%;
+  --primary-foreground: 240 10% 4%;
 
-  --secondary: 240 4% 12%;
+  --secondary: 210 15% 20%;
 
   --secondary-foreground: 0 0% 98%;
 
-  --secondary-border: 240 4% 18%;
-
-  --muted: 240 4% 10%;
+  --muted: 240 4% 16%;
 
   --muted-foreground: 240 5% 65%;
 
-  --accent: 240 4% 14%;
+  --accent: 240 4% 20%;
 
   --accent-foreground: 0 0% 98%;
 
-  --destructive: 0 72% 51%;
+  --destructive: 0 84% 60%;
 
-  --destructive-foreground: 0 0% 98%;
+  --destructive-foreground: 0 0% 100%;
 
-  --input: 240 4% 16%;
+  --input: 240 5% 26%;
+  --ring: 178 60% 55%;
+  --chart-1: 178 60% 60%;
+  --chart-2: 142 76% 50%;
+  --chart-3: 38 92% 60%;
+  --chart-4: 0 84% 70%;
+  --chart-5: 280 65% 65%;
 
-  --ring: 178 60% 50%;
+  --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.3);
+  --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.4);
+  --shadow-sm: 0px 2px 4px -1px hsl(0 0% 0% / 0.35), 0px 1px 2px -1px hsl(0 0% 0% / 0.4);
+  --shadow: 0px 4px 6px -1px hsl(0 0% 0% / 0.4), 0px 2px 4px -2px hsl(0 0% 0% / 0.4);
+  --shadow-md: 0px 6px 12px -2px hsl(0 0% 0% / 0.45), 0px 3px 7px -3px hsl(0 0% 0% / 0.4);
+  --shadow-lg: 0px 10px 20px -4px hsl(0 0% 0% / 0.5), 0px 4px 10px -4px hsl(0 0% 0% / 0.4);
+  --shadow-xl: 0px 20px 30px -6px hsl(0 0% 0% / 0.55), 0px 8px 16px -6px hsl(0 0% 0% / 0.45);
+  --shadow-2xl: 0px 25px 50px -12px hsl(0 0% 0% / 0.6);
 
-  --chart-1: 220 70% 50%;
-
-  --chart-2: 160 60% 45%;
-
-  --chart-3: 30 80% 55%;
-
-  --chart-4: 280 65% 60%;
-
-  --chart-5: 340 75% 55%;
+  /* Automatically computed borders - intensity can be controlled by the user by the --opaque-button-border-intensity setting */
+  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
 @layer base {
   * {
     @apply border-border;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply font-sans antialiased bg-background text-foreground;
   }
 }
 
+.driverjs-theme .driver-popover {
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border: 1px solid hsl(var(--popover-border));
+  border-radius: calc(var(--radius) * 1.1);
+  box-shadow: 0 20px 45px -20px rgba(15, 23, 42, 0.35);
+}
+
+.driverjs-theme .driver-popover-title {
+  color: hsl(var(--foreground));
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.driverjs-theme .driver-popover-description {
+  color: hsl(var(--muted-foreground));
+  line-height: 1.55;
+}
+
+.driverjs-theme .driver-popover-progress-text {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+}
+
+.driverjs-theme .driver-popover-footer {
+  gap: 0.5rem;
+}
+
+.driverjs-theme .driver-popover-footer button {
+  border-radius: calc(var(--radius) / 1.2);
+  font-weight: 500;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.driverjs-theme .driver-popover-next-btn,
+.driverjs-theme .driver-popover-done-btn {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary-border));
+}
+
+.driverjs-theme .driver-popover-prev-btn,
+.driverjs-theme .driver-popover-close-btn {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  border-color: hsl(var(--muted-border));
+}
+
+.driverjs-theme .driver-popover-next-btn:hover,
+.driverjs-theme .driver-popover-done-btn:hover {
+  background-color: hsl(var(--primary));
+  filter: brightness(0.95);
+}
+
+.driverjs-theme .driver-popover-prev-btn:hover,
+.driverjs-theme .driver-popover-close-btn:hover {
+  background-color: hsl(var(--accent));
+}
+
+.driverjs-theme .driver-highlighted-element {
+  box-shadow:
+    0 0 0 4px hsl(var(--primary) / 0.25),
+    0 20px 40px -24px rgba(15, 23, 42, 0.4);
+  border-radius: calc(var(--radius) + 6px);
+}
+
+.driverjs-theme .driver-overlay {
+  backdrop-filter: blur(2px);
+}
+
+.driverjs-theme .driver-popover-arrow {
+  border-color: hsl(var(--card));
+}
 
 @layer utilities {
-  .no-active-interaction-elevate {
+
+  /* Hide ugly search cancel button in Chrome until we can style it properly */
+  input[type="search"]::-webkit-search-cancel-button {
+    @apply hidden;
+  }
+
+  /* Placeholder styling for contentEditable div */
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
     pointer-events: none;
   }
 
-  .no-hover-interaction-elevate {
+  .no-default-hover-elevate {}
+
+  .no-default-active-elevate {}
+
+  .toggle-elevate::before,
+  .toggle-elevate-2::before {
+    content: "";
     pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: -1;
   }
-}
 
-/* The following styles are tailwind extension styles */
+  .toggle-elevate.toggle-elevated::before {
+    background-color: var(--elevate-2);
+  }
 
-:root {
-  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-}
+  .border.toggle-elevate::before {
+    inset: -1px;
+  }
 
-.border {
-  border-color: hsl(var(--border));
-}
+  .hover-elevate:not(.no-default-hover-elevate),
+  .active-elevate:not(.no-default-active-elevate),
+  .hover-elevate-2:not(.no-default-hover-elevate),
+  .active-elevate-2:not(.no-default-active-elevate) {
+    position: relative;
+    z-index: 0;
+  }
 
-.border.hover-elevate:not(.no-hover-interaction-elevate):hover,
-.border.active-elevate:not(.no-active-interaction-elevate):active {
-  border-color: hsl(from hsl(var(--border)) h s calc(l + 10) / alpha) !important;
-}
+  .hover-elevate:not(.no-default-hover-elevate)::after,
+  .active-elevate:not(.no-default-active-elevate)::after,
+  .hover-elevate-2:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:not(.no-default-active-elevate)::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: 999;
+  }
 
-.border.hover-elevate-2:not(.no-hover-interaction-elevate):hover,
-.border.active-elevate-2:not(.no-active-interaction-elevate):active {
-  border-color: hsl(from hsl(var(--border)) h s calc(l + 15) / alpha) !important;
-}
+  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-1);
+  }
 
-.shadow-sm {
-  box-shadow: var(--shadow-sm);
-}
+  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-2);
+  }
 
-.shadow {
-  box-shadow: var(--shadow);
-}
-
-.shadow-md {
-  box-shadow: var(--shadow-md);
-}
-
-.shadow-lg {
-  box-shadow: var(--shadow-lg);
-}
-
-.shadow-xl {
-  box-shadow: var(--shadow-xl);
-}
-
-.shadow-2xl {
-  box-shadow: var(--shadow-2xl);
-}
-
-.tracking-normal {
-  letter-spacing: var(--tracking-normal);
-}
-
-/* Hover-elevate and active-elevate styles */
-.hover-elevate:not(.no-hover-interaction-elevate)::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-color: var(--elevate-1);
-  opacity: 0;
-  transition: opacity 0.2s;
-  border-radius: inherit;
-}
-
-.hover-elevate:not(.no-hover-interaction-elevate):hover::after {
-  opacity: 1;
-}
-
-.hover-elevate-2:not(.no-hover-interaction-elevate)::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-color: var(--elevate-2);
-  opacity: 0;
-  transition: opacity 0.2s;
-  border-radius: inherit;
-}
-
-.hover-elevate-2:not(.no-hover-interaction-elevate):hover::after {
-  opacity: 1;
-}
-
-.active-elevate:not(.no-active-interaction-elevate)::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-color: var(--elevate-1);
-  opacity: 0;
-  transition: opacity 0.2s;
-  border-radius: inherit;
-}
-
-.active-elevate:not(.no-active-interaction-elevate):active::after {
-  opacity: 1;
-}
-
-.active-elevate-2:not(.no-active-interaction-elevate)::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-color: var(--elevate-2);
-  opacity: 0;
-  transition: opacity 0.2s;
-  border-radius: inherit;
-}
-
-.active-elevate-2:not(.no-active-interaction-elevate):active::after {
-  opacity: 1;
-}
-
-/* Ensure :after pseudo-elements are positioned correctly based on border presence */
-.border.hover-elevate:not(.no-hover-interaction-elevate)::after,
-.border.active-elevate:not(.no-active-interaction-elevate)::after,
-.border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
-.border.active-elevate-2:not(.no-active-interaction-elevate)::after {
-  inset: -1px;
-}
-
-/* iOS-specific tap styles for mobile */
-.ios-tap {
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-.ios-no-select {
-  -webkit-user-select: none;
-  user-select: none;
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
+    inset: -1px;
+  }
 }

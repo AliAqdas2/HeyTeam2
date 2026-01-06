@@ -1,0 +1,110 @@
+{
+  "expo": {
+    "name": "HeyTeam",
+    "slug": "heyteam",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "heyteam",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "buildNumber": "2",
+      "version": "1.0.1",
+      "supportsTablet": true,
+      "bundleIdentifier": "ai.heyteam.portal",
+      "associatedDomains": [
+        "applinks:portal.heyteam.ai"
+      ],
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      },
+      "appleTeamId": "RWG992F4CW"
+    },
+    "android": {
+      "package": "ai.heyteam.portal",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "portal.heyteam.ai",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
+      "permissions": [
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS"
+      ]
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow $(PRODUCT_NAME) to access your contacts to import them into the app."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#0db2b5",
+          "defaultChannel": "default"
+        }
+      ],
+      "./plugins/withNetworkSecurityConfig"
+    ],
+    "notification": {
+      "icon": "./assets/images/notification-icon.png",
+      "color": "#0db2b5",
+      "androidMode": "default",
+      "androidCollapsedTitle": "HeyTeam"
+    },
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "530a11d4-d31c-4c29-b3e3-ba88150e70b4"
+      }
+    }
+  }
+}

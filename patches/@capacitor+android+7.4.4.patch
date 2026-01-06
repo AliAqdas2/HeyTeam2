@@ -58,9 +58,416 @@ index 0000000..68c9fab
 @@ -0,0 +1,2 @@
 +connection.project.dir=../../../../android
 +eclipse.preferences.version=1
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/0a0225e9d73948fe85a66c86c86a638e/results.bin b/node_modules/@capacitor/android/capacitor/build/.transforms/0a0225e9d73948fe85a66c86c86a638e/results.bin
+new file mode 100644
+index 0000000..0d259dd
+--- /dev/null
++++ b/node_modules/@capacitor/android/capacitor/build/.transforms/0a0225e9d73948fe85a66c86c86a638e/results.bin
+@@ -0,0 +1 @@
++o/classes
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/0a0225e9d73948fe85a66c86c86a638e/transformed/classes/classes_dex/classes.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/0a0225e9d73948fe85a66c86c86a638e/transformed/classes/classes_dex/classes.dex
+new file mode 100644
+index 0000000..efb7f7b
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/0a0225e9d73948fe85a66c86c86a638e/transformed/classes/classes_dex/classes.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/1c5a2c9cbfad5dba556890c489bb1d47/results.bin b/node_modules/@capacitor/android/capacitor/build/.transforms/1c5a2c9cbfad5dba556890c489bb1d47/results.bin
+new file mode 100644
+index 0000000..1ed65e0
+--- /dev/null
++++ b/node_modules/@capacitor/android/capacitor/build/.transforms/1c5a2c9cbfad5dba556890c489bb1d47/results.bin
+@@ -0,0 +1 @@
++i/
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/49dec28bc5b9c618b9b3c3613060bdc7/results.bin b/node_modules/@capacitor/android/capacitor/build/.transforms/49dec28bc5b9c618b9b3c3613060bdc7/results.bin
+new file mode 100644
+index 0000000..e3f0ff0
+--- /dev/null
++++ b/node_modules/@capacitor/android/capacitor/build/.transforms/49dec28bc5b9c618b9b3c3613060bdc7/results.bin
+@@ -0,0 +1 @@
++i/classes_global-synthetics
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/4b5704db6c4e6dd3ed0d2c1167c16438/results.bin b/node_modules/@capacitor/android/capacitor/build/.transforms/4b5704db6c4e6dd3ed0d2c1167c16438/results.bin
+new file mode 100644
+index 0000000..1ed65e0
+--- /dev/null
++++ b/node_modules/@capacitor/android/capacitor/build/.transforms/4b5704db6c4e6dd3ed0d2c1167c16438/results.bin
+@@ -0,0 +1 @@
++i/
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/5811bff6d5f06cc82dc33bc94dba164e/results.bin b/node_modules/@capacitor/android/capacitor/build/.transforms/5811bff6d5f06cc82dc33bc94dba164e/results.bin
+new file mode 100644
+index 0000000..0d259dd
+--- /dev/null
++++ b/node_modules/@capacitor/android/capacitor/build/.transforms/5811bff6d5f06cc82dc33bc94dba164e/results.bin
+@@ -0,0 +1 @@
++o/classes
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/5811bff6d5f06cc82dc33bc94dba164e/transformed/classes/classes_dex/classes.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/5811bff6d5f06cc82dc33bc94dba164e/transformed/classes/classes_dex/classes.dex
+new file mode 100644
+index 0000000..9ba584b
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/5811bff6d5f06cc82dc33bc94dba164e/transformed/classes/classes_dex/classes.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/636f85f205a4d1b437c0a13e2cbe995d/results.bin b/node_modules/@capacitor/android/capacitor/build/.transforms/636f85f205a4d1b437c0a13e2cbe995d/results.bin
+new file mode 100644
+index 0000000..e3f0ff0
+--- /dev/null
++++ b/node_modules/@capacitor/android/capacitor/build/.transforms/636f85f205a4d1b437c0a13e2cbe995d/results.bin
+@@ -0,0 +1 @@
++i/classes_global-synthetics
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/8a8b7530a99c828e48a8761c7e0895e3/results.bin b/node_modules/@capacitor/android/capacitor/build/.transforms/8a8b7530a99c828e48a8761c7e0895e3/results.bin
+new file mode 100644
+index 0000000..61a58fa
+--- /dev/null
++++ b/node_modules/@capacitor/android/capacitor/build/.transforms/8a8b7530a99c828e48a8761c7e0895e3/results.bin
+@@ -0,0 +1 @@
++i/classes_dex
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/results.bin b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/results.bin
+new file mode 100644
+index 0000000..5ff383e
+--- /dev/null
++++ b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/results.bin
+@@ -0,0 +1 @@
++o/debug
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/AndroidProtocolHandler.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/AndroidProtocolHandler.dex
+new file mode 100644
+index 0000000..a227ed4
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/AndroidProtocolHandler.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/App$AppRestoredListener.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/App$AppRestoredListener.dex
+new file mode 100644
+index 0000000..4846454
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/App$AppRestoredListener.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/App$AppStatusChangeListener.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/App$AppStatusChangeListener.dex
+new file mode 100644
+index 0000000..d7f474a
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/App$AppStatusChangeListener.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/App.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/App.dex
+new file mode 100644
+index 0000000..19ba467
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/App.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/AppUUID.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/AppUUID.dex
+new file mode 100644
+index 0000000..83fab69
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/AppUUID.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Bridge$1.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Bridge$1.dex
+new file mode 100644
+index 0000000..7c3fd0e
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Bridge$1.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Bridge$Builder.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Bridge$Builder.dex
+new file mode 100644
+index 0000000..ca6bfca
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Bridge$Builder.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Bridge.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Bridge.dex
+new file mode 100644
+index 0000000..234e7ce
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Bridge.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeActivity.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeActivity.dex
+new file mode 100644
+index 0000000..6902979
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeActivity.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeWebChromeClient$ActivityResultListener.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeWebChromeClient$ActivityResultListener.dex
+new file mode 100644
+index 0000000..5373632
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeWebChromeClient$ActivityResultListener.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeWebChromeClient$PermissionListener.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeWebChromeClient$PermissionListener.dex
+new file mode 100644
+index 0000000..f862500
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeWebChromeClient$PermissionListener.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeWebChromeClient.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeWebChromeClient.dex
+new file mode 100644
+index 0000000..49a5485
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeWebChromeClient.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeWebViewClient.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeWebViewClient.dex
+new file mode 100644
+index 0000000..a32764c
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/BridgeWebViewClient.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/CapConfig$Builder.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/CapConfig$Builder.dex
+new file mode 100644
+index 0000000..d43ffde
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/CapConfig$Builder.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/CapConfig.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/CapConfig.dex
+new file mode 100644
+index 0000000..1405822
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/CapConfig.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/CapacitorWebView.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/CapacitorWebView.dex
+new file mode 100644
+index 0000000..571c7df
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/CapacitorWebView.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/FileUtils$Type.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/FileUtils$Type.dex
+new file mode 100644
+index 0000000..8a95019
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/FileUtils$Type.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/FileUtils.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/FileUtils.dex
+new file mode 100644
+index 0000000..c1c2178
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/FileUtils.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/InvalidPluginException.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/InvalidPluginException.dex
+new file mode 100644
+index 0000000..6aa8c33
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/InvalidPluginException.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/InvalidPluginMethodException.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/InvalidPluginMethodException.dex
+new file mode 100644
+index 0000000..0489846
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/InvalidPluginMethodException.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSArray.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSArray.dex
+new file mode 100644
+index 0000000..4504369
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSArray.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSExport.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSExport.dex
+new file mode 100644
+index 0000000..9eeb910
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSExport.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSExportException.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSExportException.dex
+new file mode 100644
+index 0000000..3b4abd9
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSExportException.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSInjector.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSInjector.dex
+new file mode 100644
+index 0000000..4b36141
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSInjector.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSObject.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSObject.dex
+new file mode 100644
+index 0000000..3261575
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSObject.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSValue.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSValue.dex
+new file mode 100644
+index 0000000..09500e2
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/JSValue.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Logger.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Logger.dex
+new file mode 100644
+index 0000000..fa4c17b
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Logger.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/MessageHandler.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/MessageHandler.dex
+new file mode 100644
+index 0000000..dee2a8d
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/MessageHandler.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/NativePlugin.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/NativePlugin.dex
+new file mode 100644
+index 0000000..778868d
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/NativePlugin.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PermissionState.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PermissionState.dex
+new file mode 100644
+index 0000000..8f80c23
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PermissionState.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Plugin.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Plugin.dex
+new file mode 100644
+index 0000000..baed726
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/Plugin.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginCall$PluginCallDataTypeException.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginCall$PluginCallDataTypeException.dex
+new file mode 100644
+index 0000000..e84c1a7
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginCall$PluginCallDataTypeException.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginCall.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginCall.dex
+new file mode 100644
+index 0000000..e9eca62
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginCall.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginConfig.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginConfig.dex
+new file mode 100644
+index 0000000..e7cab90
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginConfig.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginHandle.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginHandle.dex
+new file mode 100644
+index 0000000..39b8e7f
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginHandle.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginInvocationException.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginInvocationException.dex
+new file mode 100644
+index 0000000..6bbcb18
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginInvocationException.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginLoadException.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginLoadException.dex
+new file mode 100644
+index 0000000..6e67974
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginLoadException.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginManager.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginManager.dex
+new file mode 100644
+index 0000000..1c166b0
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginManager.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginMethod.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginMethod.dex
+new file mode 100644
+index 0000000..0105eae
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginMethod.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginMethodHandle.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginMethodHandle.dex
+new file mode 100644
+index 0000000..d8493a1
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginMethodHandle.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginResult.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginResult.dex
+new file mode 100644
+index 0000000..f4fb21b
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/PluginResult.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/ProcessedRoute.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/ProcessedRoute.dex
+new file mode 100644
+index 0000000..2613601
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/ProcessedRoute.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/RouteProcessor.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/RouteProcessor.dex
+new file mode 100644
+index 0000000..66323f8
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/RouteProcessor.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/ServerPath$PathType.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/ServerPath$PathType.dex
+new file mode 100644
+index 0000000..1895886
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/ServerPath$PathType.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/ServerPath.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/ServerPath.dex
+new file mode 100644
+index 0000000..55d5034
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/ServerPath.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/UriMatcher.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/UriMatcher.dex
+new file mode 100644
+index 0000000..bffe932
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/UriMatcher.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewListener.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewListener.dex
+new file mode 100644
+index 0000000..b0d24fb
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewListener.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer$1.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer$1.dex
+new file mode 100644
+index 0000000..0d116cf
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer$1.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer$LazyInputStream.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer$LazyInputStream.dex
+new file mode 100644
+index 0000000..c6d08e8
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer$LazyInputStream.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer$LollipopLazyInputStream.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer$LollipopLazyInputStream.dex
+new file mode 100644
+index 0000000..88ec1c8
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer$LollipopLazyInputStream.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer$PathHandler.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer$PathHandler.dex
+new file mode 100644
+index 0000000..59e9c78
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer$PathHandler.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer.dex
+new file mode 100644
+index 0000000..e49fb53
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/WebViewLocalServer.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/annotation/ActivityCallback.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/annotation/ActivityCallback.dex
+new file mode 100644
+index 0000000..1559b51
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/annotation/ActivityCallback.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/annotation/CapacitorPlugin.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/annotation/CapacitorPlugin.dex
+new file mode 100644
+index 0000000..07e6583
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/annotation/CapacitorPlugin.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/annotation/Permission.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/annotation/Permission.dex
+new file mode 100644
+index 0000000..4afe15e
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/annotation/Permission.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/annotation/PermissionCallback.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/annotation/PermissionCallback.dex
+new file mode 100644
+index 0000000..10211f6
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/annotation/PermissionCallback.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/cordova/CapacitorCordovaCookieManager.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/cordova/CapacitorCordovaCookieManager.dex
+new file mode 100644
+index 0000000..feb99e6
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/cordova/CapacitorCordovaCookieManager.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/cordova/MockCordovaInterfaceImpl.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/cordova/MockCordovaInterfaceImpl.dex
+new file mode 100644
+index 0000000..75a9a9a
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/cordova/MockCordovaInterfaceImpl.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/cordova/MockCordovaWebViewImpl$CapacitorEvalBridgeMode.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/cordova/MockCordovaWebViewImpl$CapacitorEvalBridgeMode.dex
+new file mode 100644
+index 0000000..201d6d5
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/cordova/MockCordovaWebViewImpl$CapacitorEvalBridgeMode.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/cordova/MockCordovaWebViewImpl.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/cordova/MockCordovaWebViewImpl.dex
+new file mode 100644
+index 0000000..cfba3fd
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/cordova/MockCordovaWebViewImpl.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/CapacitorCookieManager.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/CapacitorCookieManager.dex
+new file mode 100644
+index 0000000..f65820c
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/CapacitorCookieManager.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/CapacitorCookies.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/CapacitorCookies.dex
+new file mode 100644
+index 0000000..3eec75d
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/CapacitorCookies.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/CapacitorHttp$1.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/CapacitorHttp$1.dex
+new file mode 100644
+index 0000000..8fb640f
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/CapacitorHttp$1.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/CapacitorHttp.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/CapacitorHttp.dex
+new file mode 100644
+index 0000000..7f93daa
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/CapacitorHttp.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/WebView.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/WebView.dex
+new file mode 100644
+index 0000000..2f2d2d1
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/WebView.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/AssetUtil.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/AssetUtil.dex
+new file mode 100644
+index 0000000..02a4539
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/AssetUtil.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/CapacitorHttpUrlConnection.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/CapacitorHttpUrlConnection.dex
+new file mode 100644
+index 0000000..e5bad87
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/CapacitorHttpUrlConnection.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/HttpRequestHandler$HttpURLConnectionBuilder.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/HttpRequestHandler$HttpURLConnectionBuilder.dex
+new file mode 100644
+index 0000000..193bf13
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/HttpRequestHandler$HttpURLConnectionBuilder.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/HttpRequestHandler$ProgressEmitter.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/HttpRequestHandler$ProgressEmitter.dex
+new file mode 100644
+index 0000000..104aea7
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/HttpRequestHandler$ProgressEmitter.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/HttpRequestHandler$ResponseType.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/HttpRequestHandler$ResponseType.dex
+new file mode 100644
+index 0000000..21526ab
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/HttpRequestHandler$ResponseType.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/HttpRequestHandler.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/HttpRequestHandler.dex
+new file mode 100644
+index 0000000..ef254c9
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/HttpRequestHandler.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/ICapacitorHttpUrlConnection.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/ICapacitorHttpUrlConnection.dex
+new file mode 100644
+index 0000000..10c40a8
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/ICapacitorHttpUrlConnection.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/MimeType.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/MimeType.dex
+new file mode 100644
+index 0000000..4d3bb95
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/plugin/util/MimeType.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Any.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Any.dex
+new file mode 100644
+index 0000000..2450462
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Any.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Nothing.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Nothing.dex
+new file mode 100644
+index 0000000..ecd8e07
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Nothing.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Parser.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Parser.dex
+new file mode 100644
+index 0000000..98333b1
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Parser.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Simple.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Simple.dex
+new file mode 100644
+index 0000000..936064b
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Simple.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Util.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Util.dex
+new file mode 100644
+index 0000000..14635bd
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask$Util.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask.dex
+new file mode 100644
+index 0000000..1d9843a
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/HostMask.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/InternalUtils.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/InternalUtils.dex
+new file mode 100644
+index 0000000..c7c445a
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/InternalUtils.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/JSONUtils.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/JSONUtils.dex
+new file mode 100644
+index 0000000..17a1fb6
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/JSONUtils.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/PermissionHelper.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/PermissionHelper.dex
+new file mode 100644
+index 0000000..b5f095e
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/PermissionHelper.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/WebColor.dex b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/WebColor.dex
+new file mode 100644
+index 0000000..72499ef
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/debug_dex/com/getcapacitor/util/WebColor.dex differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/desugar_graph.bin b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/desugar_graph.bin
+new file mode 100644
+index 0000000..a37e363
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/.transforms/b847d80a55b0cf6bf7dcf8290a155b8c/transformed/debug/desugar_graph.bin differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/.transforms/fcf6cbd00233cd80f28ef6ee430b65e9/results.bin b/node_modules/@capacitor/android/capacitor/build/.transforms/fcf6cbd00233cd80f28ef6ee430b65e9/results.bin
+new file mode 100644
+index 0000000..4c288ce
+--- /dev/null
++++ b/node_modules/@capacitor/android/capacitor/build/.transforms/fcf6cbd00233cd80f28ef6ee430b65e9/results.bin
+@@ -0,0 +1 @@
++i/debug_dex
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/aapt_friendly_merged_manifests/debug/aapt/AndroidManifest.xml b/node_modules/@capacitor/android/capacitor/build/intermediates/aapt_friendly_merged_manifests/debug/aapt/AndroidManifest.xml
 new file mode 100644
-index 0000000..a00328f
+index 0000000..210c64d
 --- /dev/null
 +++ b/node_modules/@capacitor/android/capacitor/build/intermediates/aapt_friendly_merged_manifests/debug/aapt/AndroidManifest.xml
 @@ -0,0 +1,7 @@
@@ -68,7 +475,7 @@ index 0000000..a00328f
 +<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 +    package="com.getcapacitor.android" >
 +
-+    <uses-sdk android:minSdkVersion="22" />
++    <uses-sdk android:minSdkVersion="23" />
 +
 +</manifest>
 \ No newline at end of file
@@ -117,6 +524,10 @@ index 0000000..9e26dfe
 @@ -0,0 +1 @@
 +{}
 \ No newline at end of file
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/compile_library_classes_jar/debug/classes.jar b/node_modules/@capacitor/android/capacitor/build/intermediates/compile_library_classes_jar/debug/classes.jar
+new file mode 100644
+index 0000000..6124cda
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/compile_library_classes_jar/debug/classes.jar differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/compile_r_class_jar/debug/R.jar b/node_modules/@capacitor/android/capacitor/build/intermediates/compile_r_class_jar/debug/R.jar
 new file mode 100644
 index 0000000..8467192
@@ -151,11 +562,11 @@ index 0000000..25c37b5
 Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/compiled_local_resources/debug/out/layout_no_webview.xml.flat differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties b/node_modules/@capacitor/android/capacitor/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
 new file mode 100644
-index 0000000..347870f
+index 0000000..43ef3bf
 --- /dev/null
 +++ b/node_modules/@capacitor/android/capacitor/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
 @@ -0,0 +1,4 @@
-+#Sat Dec 13 15:35:36 PKT 2025
++#Sat Dec 13 16:48:33 PKT 2025
 +com.getcapacitor.android.capacitor-android-main-6\:/layout/bridge_layout_main.xml=/Users/Ali/Projects/Heyteam/Heyteam App/node_modules/@capacitor/android/capacitor/build/intermediates/packaged_res/debug/layout/bridge_layout_main.xml
 +com.getcapacitor.android.capacitor-android-main-6\:/layout/capacitor_bridge_layout_main.xml=/Users/Ali/Projects/Heyteam/Heyteam App/node_modules/@capacitor/android/capacitor/build/intermediates/packaged_res/debug/layout/capacitor_bridge_layout_main.xml
 +com.getcapacitor.android.capacitor-android-main-6\:/layout/no_webview.xml=/Users/Ali/Projects/Heyteam/Heyteam App/node_modules/@capacitor/android/capacitor/build/intermediates/packaged_res/debug/layout/no_webview.xml
@@ -232,6 +643,10 @@ diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac
 new file mode 100644
 index 0000000..015e4bc
 Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/App.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/AppUUID.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/AppUUID.class
+new file mode 100644
+index 0000000..777f918
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/AppUUID.class differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/Bridge$1.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/Bridge$1.class
 new file mode 100644
 index 0000000..756f31c
@@ -244,6 +659,22 @@ diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac
 new file mode 100644
 index 0000000..8bdb66d
 Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/Bridge.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeActivity.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeActivity.class
+new file mode 100644
+index 0000000..df20db5
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeActivity.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeWebChromeClient$ActivityResultListener.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeWebChromeClient$ActivityResultListener.class
+new file mode 100644
+index 0000000..28bf842
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeWebChromeClient$ActivityResultListener.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeWebChromeClient$PermissionListener.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeWebChromeClient$PermissionListener.class
+new file mode 100644
+index 0000000..cef9401
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeWebChromeClient$PermissionListener.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeWebChromeClient.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeWebChromeClient.class
+new file mode 100644
+index 0000000..a86c87b
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeWebChromeClient.class differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeWebViewClient.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/BridgeWebViewClient.class
 new file mode 100644
 index 0000000..4dac73f
@@ -256,6 +687,10 @@ diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac
 new file mode 100644
 index 0000000..0200d3b
 Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/CapConfig.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/CapacitorWebView.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/CapacitorWebView.class
+new file mode 100644
+index 0000000..8345bb1
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/CapacitorWebView.class differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/FileUtils$Type.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/FileUtils$Type.class
 new file mode 100644
 index 0000000..a9ab451
@@ -276,6 +711,14 @@ diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac
 new file mode 100644
 index 0000000..103bde0
 Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/JSArray.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/JSExport.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/JSExport.class
+new file mode 100644
+index 0000000..5554dba
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/JSExport.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/JSExportException.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/JSExportException.class
+new file mode 100644
+index 0000000..2c1a6cb
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/JSExportException.class differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/JSInjector.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/JSInjector.class
 new file mode 100644
 index 0000000..6debd4d
@@ -288,6 +731,10 @@ diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac
 new file mode 100644
 index 0000000..e8419dd
 Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/JSValue.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/Logger.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/Logger.class
+new file mode 100644
+index 0000000..68688e4
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/Logger.class differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/MessageHandler.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/MessageHandler.class
 new file mode 100644
 index 0000000..60533c6
@@ -320,10 +767,18 @@ diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac
 new file mode 100644
 index 0000000..ac831ed
 Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/PluginHandle.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/PluginInvocationException.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/PluginInvocationException.class
+new file mode 100644
+index 0000000..647a6f0
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/PluginInvocationException.class differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/PluginLoadException.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/PluginLoadException.class
 new file mode 100644
 index 0000000..d4261a0
 Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/PluginLoadException.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/PluginManager.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/PluginManager.class
+new file mode 100644
+index 0000000..8f8e870
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/PluginManager.class differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/PluginMethod.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/PluginMethod.class
 new file mode 100644
 index 0000000..9295f6a
@@ -380,6 +835,10 @@ diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac
 new file mode 100644
 index 0000000..bac8d52
 Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/WebViewLocalServer.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/annotation/ActivityCallback.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/annotation/ActivityCallback.class
+new file mode 100644
+index 0000000..a37758a
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/annotation/ActivityCallback.class differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/annotation/CapacitorPlugin.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/annotation/CapacitorPlugin.class
 new file mode 100644
 index 0000000..e679e20
@@ -388,6 +847,10 @@ diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac
 new file mode 100644
 index 0000000..b03fecd
 Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/annotation/Permission.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/annotation/PermissionCallback.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/annotation/PermissionCallback.class
+new file mode 100644
+index 0000000..0b3b483
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/annotation/PermissionCallback.class differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/cordova/CapacitorCordovaCookieManager.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/cordova/CapacitorCordovaCookieManager.class
 new file mode 100644
 index 0000000..d19ceb8
@@ -404,6 +867,30 @@ diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac
 new file mode 100644
 index 0000000..e4614aa
 Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/cordova/MockCordovaWebViewImpl.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/CapacitorCookieManager.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/CapacitorCookieManager.class
+new file mode 100644
+index 0000000..d0fa8ac
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/CapacitorCookieManager.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/CapacitorCookies.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/CapacitorCookies.class
+new file mode 100644
+index 0000000..4cdc964
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/CapacitorCookies.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/CapacitorHttp$1.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/CapacitorHttp$1.class
+new file mode 100644
+index 0000000..5e2646d
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/CapacitorHttp$1.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/CapacitorHttp.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/CapacitorHttp.class
+new file mode 100644
+index 0000000..b575109
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/CapacitorHttp.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/WebView.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/WebView.class
+new file mode 100644
+index 0000000..23df266
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/WebView.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/util/AssetUtil.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/util/AssetUtil.class
+new file mode 100644
+index 0000000..631459a
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/util/AssetUtil.class differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/util/CapacitorHttpUrlConnection.class b/node_modules/@capacitor/android/capacitor/build/intermediates/javac/debug/classes/com/getcapacitor/plugin/util/CapacitorHttpUrlConnection.class
 new file mode 100644
 index 0000000..d2f2243
@@ -1527,7 +2014,7 @@ index 0000000..19d1684
 +style AppTheme.NoActionBar
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/manifest_merge_blame_file/debug/manifest-merger-blame-debug-report.txt b/node_modules/@capacitor/android/capacitor/build/intermediates/manifest_merge_blame_file/debug/manifest-merger-blame-debug-report.txt
 new file mode 100644
-index 0000000..55c14a2
+index 0000000..d2c8a5d
 --- /dev/null
 +++ b/node_modules/@capacitor/android/capacitor/build/intermediates/manifest_merge_blame_file/debug/manifest-merger-blame-debug-report.txt
 @@ -0,0 +1,7 @@
@@ -1535,12 +2022,12 @@ index 0000000..55c14a2
 +2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 +3    package="com.getcapacitor.android" >
 +4
-+5    <uses-sdk android:minSdkVersion="22" />
++5    <uses-sdk android:minSdkVersion="23" />
 +6
 +7</manifest>
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/merged_manifest/debug/AndroidManifest.xml b/node_modules/@capacitor/android/capacitor/build/intermediates/merged_manifest/debug/AndroidManifest.xml
 new file mode 100644
-index 0000000..a00328f
+index 0000000..210c64d
 --- /dev/null
 +++ b/node_modules/@capacitor/android/capacitor/build/intermediates/merged_manifest/debug/AndroidManifest.xml
 @@ -0,0 +1,7 @@
@@ -1548,7 +2035,7 @@ index 0000000..a00328f
 +<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 +    package="com.getcapacitor.android" >
 +
-+    <uses-sdk android:minSdkVersion="22" />
++    <uses-sdk android:minSdkVersion="23" />
 +
 +</manifest>
 \ No newline at end of file
@@ -1641,6 +2128,342 @@ index 0000000..f732400
 +    </style>
 +</resources>
 \ No newline at end of file
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/AndroidProtocolHandler.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/AndroidProtocolHandler.class
+new file mode 100644
+index 0000000..c277fce
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/AndroidProtocolHandler.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/App$AppRestoredListener.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/App$AppRestoredListener.class
+new file mode 100644
+index 0000000..c82cbb5
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/App$AppRestoredListener.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/App$AppStatusChangeListener.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/App$AppStatusChangeListener.class
+new file mode 100644
+index 0000000..d1bfcf1
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/App$AppStatusChangeListener.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/App.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/App.class
+new file mode 100644
+index 0000000..015e4bc
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/App.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/AppUUID.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/AppUUID.class
+new file mode 100644
+index 0000000..777f918
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/AppUUID.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Bridge$1.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Bridge$1.class
+new file mode 100644
+index 0000000..756f31c
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Bridge$1.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Bridge$Builder.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Bridge$Builder.class
+new file mode 100644
+index 0000000..84c42bb
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Bridge$Builder.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Bridge.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Bridge.class
+new file mode 100644
+index 0000000..8bdb66d
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Bridge.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeActivity.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeActivity.class
+new file mode 100644
+index 0000000..df20db5
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeActivity.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeWebChromeClient$ActivityResultListener.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeWebChromeClient$ActivityResultListener.class
+new file mode 100644
+index 0000000..28bf842
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeWebChromeClient$ActivityResultListener.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeWebChromeClient$PermissionListener.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeWebChromeClient$PermissionListener.class
+new file mode 100644
+index 0000000..cef9401
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeWebChromeClient$PermissionListener.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeWebChromeClient.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeWebChromeClient.class
+new file mode 100644
+index 0000000..a86c87b
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeWebChromeClient.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeWebViewClient.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeWebViewClient.class
+new file mode 100644
+index 0000000..4dac73f
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/BridgeWebViewClient.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/CapConfig$Builder.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/CapConfig$Builder.class
+new file mode 100644
+index 0000000..6b3f9cc
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/CapConfig$Builder.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/CapConfig.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/CapConfig.class
+new file mode 100644
+index 0000000..0200d3b
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/CapConfig.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/CapacitorWebView.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/CapacitorWebView.class
+new file mode 100644
+index 0000000..8345bb1
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/CapacitorWebView.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/FileUtils$Type.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/FileUtils$Type.class
+new file mode 100644
+index 0000000..a9ab451
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/FileUtils$Type.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/FileUtils.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/FileUtils.class
+new file mode 100644
+index 0000000..c97591e
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/FileUtils.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/InvalidPluginException.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/InvalidPluginException.class
+new file mode 100644
+index 0000000..53575cc
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/InvalidPluginException.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/InvalidPluginMethodException.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/InvalidPluginMethodException.class
+new file mode 100644
+index 0000000..2f61ffc
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/InvalidPluginMethodException.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSArray.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSArray.class
+new file mode 100644
+index 0000000..103bde0
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSArray.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSExport.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSExport.class
+new file mode 100644
+index 0000000..5554dba
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSExport.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSExportException.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSExportException.class
+new file mode 100644
+index 0000000..2c1a6cb
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSExportException.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSInjector.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSInjector.class
+new file mode 100644
+index 0000000..6debd4d
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSInjector.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSObject.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSObject.class
+new file mode 100644
+index 0000000..a731c27
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSObject.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSValue.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSValue.class
+new file mode 100644
+index 0000000..e8419dd
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/JSValue.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Logger.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Logger.class
+new file mode 100644
+index 0000000..68688e4
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Logger.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/MessageHandler.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/MessageHandler.class
+new file mode 100644
+index 0000000..60533c6
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/MessageHandler.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/NativePlugin.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/NativePlugin.class
+new file mode 100644
+index 0000000..fd82ef2
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/NativePlugin.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PermissionState.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PermissionState.class
+new file mode 100644
+index 0000000..ec64cfb
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PermissionState.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Plugin.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Plugin.class
+new file mode 100644
+index 0000000..a561338
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/Plugin.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginCall$PluginCallDataTypeException.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginCall$PluginCallDataTypeException.class
+new file mode 100644
+index 0000000..627d46f
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginCall$PluginCallDataTypeException.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginCall.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginCall.class
+new file mode 100644
+index 0000000..cc0395f
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginCall.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginConfig.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginConfig.class
+new file mode 100644
+index 0000000..40aeb57
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginConfig.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginHandle.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginHandle.class
+new file mode 100644
+index 0000000..ac831ed
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginHandle.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginInvocationException.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginInvocationException.class
+new file mode 100644
+index 0000000..647a6f0
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginInvocationException.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginLoadException.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginLoadException.class
+new file mode 100644
+index 0000000..d4261a0
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginLoadException.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginManager.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginManager.class
+new file mode 100644
+index 0000000..8f8e870
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginManager.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginMethod.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginMethod.class
+new file mode 100644
+index 0000000..9295f6a
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginMethod.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginMethodHandle.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginMethodHandle.class
+new file mode 100644
+index 0000000..2771927
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginMethodHandle.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginResult.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginResult.class
+new file mode 100644
+index 0000000..4a9d0a3
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/PluginResult.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/ProcessedRoute.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/ProcessedRoute.class
+new file mode 100644
+index 0000000..5dc8e5b
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/ProcessedRoute.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/RouteProcessor.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/RouteProcessor.class
+new file mode 100644
+index 0000000..69b896f
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/RouteProcessor.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/ServerPath$PathType.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/ServerPath$PathType.class
+new file mode 100644
+index 0000000..314591f
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/ServerPath$PathType.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/ServerPath.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/ServerPath.class
+new file mode 100644
+index 0000000..1b690cb
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/ServerPath.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/UriMatcher.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/UriMatcher.class
+new file mode 100644
+index 0000000..04868de
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/UriMatcher.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewListener.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewListener.class
+new file mode 100644
+index 0000000..d4ad40b
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewListener.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer$1.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer$1.class
+new file mode 100644
+index 0000000..9003f58
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer$1.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer$LazyInputStream.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer$LazyInputStream.class
+new file mode 100644
+index 0000000..6d3c0ca
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer$LazyInputStream.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer$LollipopLazyInputStream.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer$LollipopLazyInputStream.class
+new file mode 100644
+index 0000000..5cf6e7f
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer$LollipopLazyInputStream.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer$PathHandler.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer$PathHandler.class
+new file mode 100644
+index 0000000..a9be3ab
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer$PathHandler.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer.class
+new file mode 100644
+index 0000000..bac8d52
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/WebViewLocalServer.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/annotation/ActivityCallback.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/annotation/ActivityCallback.class
+new file mode 100644
+index 0000000..a37758a
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/annotation/ActivityCallback.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/annotation/CapacitorPlugin.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/annotation/CapacitorPlugin.class
+new file mode 100644
+index 0000000..e679e20
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/annotation/CapacitorPlugin.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/annotation/Permission.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/annotation/Permission.class
+new file mode 100644
+index 0000000..b03fecd
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/annotation/Permission.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/annotation/PermissionCallback.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/annotation/PermissionCallback.class
+new file mode 100644
+index 0000000..0b3b483
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/annotation/PermissionCallback.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/cordova/CapacitorCordovaCookieManager.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/cordova/CapacitorCordovaCookieManager.class
+new file mode 100644
+index 0000000..d19ceb8
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/cordova/CapacitorCordovaCookieManager.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/cordova/MockCordovaInterfaceImpl.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/cordova/MockCordovaInterfaceImpl.class
+new file mode 100644
+index 0000000..5df15ef
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/cordova/MockCordovaInterfaceImpl.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/cordova/MockCordovaWebViewImpl$CapacitorEvalBridgeMode.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/cordova/MockCordovaWebViewImpl$CapacitorEvalBridgeMode.class
+new file mode 100644
+index 0000000..e33f195
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/cordova/MockCordovaWebViewImpl$CapacitorEvalBridgeMode.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/cordova/MockCordovaWebViewImpl.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/cordova/MockCordovaWebViewImpl.class
+new file mode 100644
+index 0000000..e4614aa
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/cordova/MockCordovaWebViewImpl.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/CapacitorCookieManager.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/CapacitorCookieManager.class
+new file mode 100644
+index 0000000..d0fa8ac
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/CapacitorCookieManager.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/CapacitorCookies.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/CapacitorCookies.class
+new file mode 100644
+index 0000000..4cdc964
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/CapacitorCookies.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/CapacitorHttp$1.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/CapacitorHttp$1.class
+new file mode 100644
+index 0000000..5e2646d
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/CapacitorHttp$1.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/CapacitorHttp.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/CapacitorHttp.class
+new file mode 100644
+index 0000000..b575109
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/CapacitorHttp.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/WebView.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/WebView.class
+new file mode 100644
+index 0000000..23df266
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/WebView.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/AssetUtil.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/AssetUtil.class
+new file mode 100644
+index 0000000..631459a
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/AssetUtil.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/CapacitorHttpUrlConnection.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/CapacitorHttpUrlConnection.class
+new file mode 100644
+index 0000000..d2f2243
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/CapacitorHttpUrlConnection.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/HttpRequestHandler$HttpURLConnectionBuilder.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/HttpRequestHandler$HttpURLConnectionBuilder.class
+new file mode 100644
+index 0000000..45aed69
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/HttpRequestHandler$HttpURLConnectionBuilder.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/HttpRequestHandler$ProgressEmitter.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/HttpRequestHandler$ProgressEmitter.class
+new file mode 100644
+index 0000000..49d6396
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/HttpRequestHandler$ProgressEmitter.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/HttpRequestHandler$ResponseType.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/HttpRequestHandler$ResponseType.class
+new file mode 100644
+index 0000000..2e85ae6
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/HttpRequestHandler$ResponseType.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/HttpRequestHandler.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/HttpRequestHandler.class
+new file mode 100644
+index 0000000..46eb182
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/HttpRequestHandler.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/ICapacitorHttpUrlConnection.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/ICapacitorHttpUrlConnection.class
+new file mode 100644
+index 0000000..d63ec9c
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/ICapacitorHttpUrlConnection.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/MimeType.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/MimeType.class
+new file mode 100644
+index 0000000..3581afc
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/plugin/util/MimeType.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Any.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Any.class
+new file mode 100644
+index 0000000..378afe4
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Any.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Nothing.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Nothing.class
+new file mode 100644
+index 0000000..f6aac64
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Nothing.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Parser.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Parser.class
+new file mode 100644
+index 0000000..804165f
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Parser.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Simple.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Simple.class
+new file mode 100644
+index 0000000..cd239d6
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Simple.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Util.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Util.class
+new file mode 100644
+index 0000000..d6379e0
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask$Util.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask.class
+new file mode 100644
+index 0000000..5c817b9
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/HostMask.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/InternalUtils.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/InternalUtils.class
+new file mode 100644
+index 0000000..e99ee7b
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/InternalUtils.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/JSONUtils.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/JSONUtils.class
+new file mode 100644
+index 0000000..33679d1
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/JSONUtils.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/PermissionHelper.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/PermissionHelper.class
+new file mode 100644
+index 0000000..7f92ce9
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/PermissionHelper.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/WebColor.class b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/WebColor.class
+new file mode 100644
+index 0000000..05ca95f
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_dir/debug/com/getcapacitor/util/WebColor.class differ
+diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_jar/debug/classes.jar b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_jar/debug/classes.jar
+new file mode 100644
+index 0000000..83d82f2
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/intermediates/runtime_library_classes_jar/debug/classes.jar differ
 diff --git a/node_modules/@capacitor/android/capacitor/build/intermediates/symbol_list_with_package_name/debug/package-aware-r.txt b/node_modules/@capacitor/android/capacitor/build/intermediates/symbol_list_with_package_name/debug/package-aware-r.txt
 new file mode 100644
 index 0000000..02d3527
@@ -1680,11 +2503,15 @@ index 0000000..2d1f135
 +		INJECTED from /Users/Ali/Projects/Heyteam/Heyteam App/node_modules/@capacitor/android/capacitor/src/main/AndroidManifest.xml
 +	android:minSdkVersion
 +		INJECTED from /Users/Ali/Projects/Heyteam/Heyteam App/node_modules/@capacitor/android/capacitor/src/main/AndroidManifest.xml
+diff --git a/node_modules/@capacitor/android/capacitor/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin b/node_modules/@capacitor/android/capacitor/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin
+new file mode 100644
+index 0000000..0540e49
+Binary files /dev/null and b/node_modules/@capacitor/android/capacitor/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin differ
 diff --git a/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/CapacitorWebView.java b/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/CapacitorWebView.java
-index 07c9ec9..58a8d4b 100644
+index 07c9ec9..eb3b141 100644
 --- a/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/CapacitorWebView.java
 +++ b/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/CapacitorWebView.java
-@@ -63,9 +63,14 @@ public class CapacitorWebView extends WebView {
+@@ -63,9 +63,15 @@ public class CapacitorWebView extends WebView {
          boolean autoMargins = false;
          boolean forceMargins = configEdgeToEdge.equals("force");
  
@@ -1694,8 +2521,9 @@ index 07c9ec9..58a8d4b 100644
 +        if (Build.VERSION.SDK_INT >= 35 && configEdgeToEdge.equals("auto")) {
              TypedValue value = new TypedValue();
 -            boolean foundOptOut = getContext().getTheme().resolveAttribute(android.R.attr.windowOptOutEdgeToEdgeEnforcement, value, true);
-+            // Access attribute using string identifier lookup (works across SDK versions)
-+            // Attribute ID for windowOptOutEdgeToEdgeEnforcement in Android API 35
++            // Suppress warning: getIdentifier() is needed here for API 35 compatibility
++            // The attribute windowOptOutEdgeToEdgeEnforcement may not be available in all SDK versions
++            @SuppressWarnings("DiscouragedApi")
 +            int attrId = getContext().getResources().getIdentifier("windowOptOutEdgeToEdgeEnforcement", "attr", "android");
 +            boolean foundOptOut = attrId != 0 && getContext().getTheme().resolveAttribute(attrId, value, true);
              boolean optOutValue = value.data != 0; // value is set to -1 on true as of Android 15, so we have to do this.

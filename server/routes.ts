@@ -4,6 +4,7 @@ import { createServer, type Server } from "http";
 import express from "express";
 import path from "path";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import { nanoid } from "nanoid";
 import { storage } from "./storage";
 import { CreditService } from "./lib/credit-service";
@@ -24,6 +25,7 @@ import {
   type Contact,
   type Job,
   type JobSkillRequirement,
+  type InsertJobSkillRequirement,
   type Template,
   type Campaign,
   type AdminUser,
@@ -34,7 +36,7 @@ import authRoutes from "./auth-routes";
 import PDFDocument from "pdfkit";
 import { sendTeamMessageNotification, sendTeamInvitationEmail, sendCancellationNotification, sendFeedbackNotificationEmail } from "./email";
 import { sendPushNotificationsToContacts } from "./push-notifications";
-import { format } from "date-fns";
+import { format, addDays, addWeeks, addMonths, getDay, setDay, startOfDay, isAfter, isBefore } from "date-fns";
 import { z } from "zod";
 
 const creditService = new CreditService(storage);
@@ -482,7 +484,8 @@ async function sendBatchMessages(
   batchContacts: Contact[],
   options: {
     job: Job;
-    template: Template;
+    template?: Template; // Now optional - can use customMessage instead
+    customMessage?: string; // Direct message content
     campaign: Campaign;
     organizationId: string;
     userId: string;
@@ -490,11 +493,13 @@ async function sendBatchMessages(
     twilioClient: any;
     fromNumber: string;
     rosterBaseUrl: string;
+    batchId?: string; // For logging
   }
 ): Promise<number> {
   const {
     job,
     template,
+    customMessage,
     campaign,
     organizationId,
     userId,
@@ -502,51 +507,104 @@ async function sendBatchMessages(
     twilioClient,
     fromNumber,
     rosterBaseUrl,
+    batchId,
   } = options;
 
   let sentCount = 0;
+  let batchPosition = 0;
 
   console.log(
-    `[Messaging] Sending batch for job ${job.id} (${job.name}) — contacts ${batchContacts
+    `[Messaging] Sending batch ${batchId || 'unknown'} for job ${job.id} (${job.name}) — contacts ${batchContacts
       .map((contact) => contact.id)
-      .join(", ")}`
+      .join(", ")} — using ${customMessage ? 'custom message' : `template: ${template?.name}`}`
   );
 
   for (const contact of batchContacts) {
+    batchPosition++;
+    const processingStartTime = Date.now();
+    
     if (contact.isOptedOut) {
+      console.log(`[Messaging] Skipping opted-out contact ${contact.id}`);
       continue;
     }
 
-    const availabilityRecord = await storage.getAvailabilityForContact(jobId, contact.id, organizationId);
-    if (!availabilityRecord) {
-      await storage.createAvailability(organizationId, {
-        jobId,
-        contactId: contact.id,
-        status: "no_reply",
-        shiftPreference: null,
-      });
-    } else {
-      await storage.updateAvailability(availabilityRecord.id, {
-        status: "no_reply",
-      });
+    // Only create/update availability records for job invitations (template-based only)
+    // Check if template name indicates it's a job invitation
+    const isJobInvitation = template?.name && 
+      (template.name.toLowerCase().includes("invitation") || 
+       template.name.toLowerCase().includes("job invitation") ||
+       template.name.toLowerCase() === "job invitation");
+
+    if (isJobInvitation) {
+      const availabilityRecord = await storage.getAvailabilityForContact(jobId, contact.id, organizationId);
+      if (!availabilityRecord) {
+        await storage.createAvailability(organizationId, {
+          jobId,
+          contactId: contact.id,
+          status: "no_reply",
+          shiftPreference: null,
+        });
+      } else {
+        await storage.updateAvailability(availabilityRecord.id, {
+          status: "no_reply",
+        });
+      }
     }
 
-    let messageContent = renderTemplate(template.content, contact, job);
+    // Determine message content: custom message or template
+    let messageContent: string;
+    if (customMessage) {
+      // Use custom message directly (can still apply basic substitutions)
+      messageContent = customMessage
+        .replace(/{{firstName}}/g, contact.firstName)
+        .replace(/{{lastName}}/g, contact.lastName)
+        .replace(/{{jobName}}/g, job.name)
+        .replace(/{{jobLocation}}/g, job.location)
+        .replace(/{{jobDate}}/g, format(new Date(job.startTime), "MMM d, yyyy"))
+        .replace(/{{jobTime}}/g, format(new Date(job.startTime), "h:mm a"));
+    } else if (template) {
+      messageContent = renderTemplate(template.content, contact, job);
+      
+      if (template.includeRosterLink) {
+        let rosterToken = contact.rosterToken;
+        if (!rosterToken) {
+          rosterToken = nanoid(32);
+          await storage.updateContact(contact.id, { rosterToken });
+        }
 
-    if (template.includeRosterLink) {
-      let rosterToken = contact.rosterToken;
-      if (!rosterToken) {
-        rosterToken = nanoid(32);
-        await storage.updateContact(contact.id, { rosterToken });
+        const normalizedBase = rosterBaseUrl.replace(/\/$/, "");
+        const rosterUrl = `${normalizedBase}/schedule/${rosterToken}`;
+        messageContent += `\n\nView your weekly schedule: ${rosterUrl}`;
       }
-
-      const normalizedBase = rosterBaseUrl.replace(/\/$/, "");
-      const rosterUrl = `${normalizedBase}/schedule/${rosterToken}`;
-      messageContent += `\n\nView your weekly schedule: ${rosterUrl}`;
+    } else {
+      console.error(`[Messaging] No template or custom message provided for contact ${contact.id}`);
+      continue;
     }
 
     let status = "sent";
     let twilioSid: string | null = null;
+    let errorMessage: string | null = null;
+    const sentAt = new Date();
+
+    // Log sms_attempted event
+    await storage.createMessageLog({
+      organizationId,
+      jobId,
+      campaignId: campaign.id,
+      contactId: contact.id,
+      eventType: "sms_attempted",
+      channel: contact.hasLogin ? "portal" : "sms",
+      status: "pending",
+      batchId,
+      batchPosition,
+      scheduledAt: new Date(),
+      metadata: JSON.stringify({ 
+        phone: contact.phone, 
+        hasLogin: contact.hasLogin,
+        messageType: customMessage ? 'custom' : 'template',
+        templateName: template?.name,
+      }),
+    });
 
     // If contact has login enabled, skip Twilio SMS and just create message in DB for portal
     if (contact.hasLogin) {
@@ -564,15 +622,18 @@ async function sendBatchMessages(
           to: e164Phone,
         });
         twilioSid = twilioMessage.sid;
-      } catch (error) {
+      } catch (error: any) {
         status = "failed";
+        errorMessage = error?.message || "Twilio send failed";
       }
     } else {
       console.log(`[DEV MODE] Would send SMS to ${contact.phone}: ${messageContent}`);
       twilioSid = `dev-${Date.now()}`;
     }
 
-    await storage.createMessage(organizationId, userId, {
+    const processingTimeMs = Date.now() - processingStartTime;
+
+    const message = await storage.createMessage(organizationId, userId, {
       contactId: contact.id,
       jobId,
       campaignId: campaign.id,
@@ -582,17 +643,90 @@ async function sendBatchMessages(
       twilioSid,
     });
 
+    // Log SMS or portal message events with enhanced details
     if (status === "sent") {
       // Only count and consume credits for contacts without login (actual SMS sent)
       if (!contact.hasLogin) {
-      sentCount += 1;
+        sentCount += 1;
+        // Log sms_sent event with enhanced fields
+        await storage.createMessageLog({
+          organizationId,
+          jobId,
+          campaignId: campaign.id,
+          contactId: contact.id,
+          eventType: "sms_sent",
+          channel: "sms",
+          status: "success",
+          messageId: message.id,
+          twilioSid,
+          batchId,
+          batchPosition,
+          sentAt,
+          costCredits: 1,
+          processingTimeMs,
+          metadata: JSON.stringify({ 
+            phone: contact.phone, 
+            countryCode: contact.countryCode,
+            messageType: customMessage ? 'custom' : 'template',
+            templateName: template?.name,
+          }),
+        });
+      } else {
+        // Log portal message event
+        await storage.createMessageLog({
+          organizationId,
+          jobId,
+          campaignId: campaign.id,
+          contactId: contact.id,
+          eventType: "portal_message_created",
+          channel: "portal",
+          status: "success",
+          messageId: message.id,
+          batchId,
+          batchPosition,
+          sentAt,
+          costCredits: 0,
+          processingTimeMs,
+          metadata: JSON.stringify({ 
+            hasLogin: true,
+            messageType: customMessage ? 'custom' : 'template',
+            templateName: template?.name,
+          }),
+        });
+      }
+
+      // Mark invitation as invited in pool (only for job invitations)
+      if (isJobInvitation) {
+        await storage.markInvitationAsInvited(jobId, contact.id);
       }
       console.log(
-        `[Messaging] Message ${contact.hasLogin ? 'created in portal' : 'sent'} to contact ${contact.id} (${contact.firstName} ${contact.lastName}) — campaign ${campaign.id}`
+        `[Messaging] Message ${contact.hasLogin ? 'created in portal' : 'sent'} to contact ${contact.id} (${contact.firstName} ${contact.lastName}) — campaign ${campaign.id} — batch ${batchId || 'n/a'} pos ${batchPosition} — ${processingTimeMs}ms`
       );
     } else {
+      // Log sms_failed event with enhanced details
+      await storage.createMessageLog({
+        organizationId,
+        jobId,
+        campaignId: campaign.id,
+        contactId: contact.id,
+        eventType: "sms_failed",
+        channel: "sms",
+        status: "failed",
+        messageId: message.id,
+        errorMessage,
+        batchId,
+        batchPosition,
+        failedAt: new Date(),
+        processingTimeMs,
+        metadata: JSON.stringify({ 
+          phone: contact.phone, 
+          countryCode: contact.countryCode,
+          messageType: customMessage ? 'custom' : 'template',
+          templateName: template?.name,
+        }),
+      });
       console.warn(
-        `[Messaging] Failed to send message to contact ${contact.id} (${contact.firstName} ${contact.lastName})`
+        `[Messaging] Failed to send message to contact ${contact.id} (${contact.firstName} ${contact.lastName}) — ${errorMessage}`
       );
     }
   }
@@ -616,7 +750,8 @@ async function scheduleBatchedMessages(
   contacts: Contact[],
   options: {
     job: Job;
-    template: Template;
+    template?: Template;
+    customMessage?: string;
     campaign: Campaign;
     organizationId: string;
     userId: string;
@@ -631,6 +766,7 @@ async function scheduleBatchedMessages(
   }
 
   let index = 0;
+  let batchNumber = 0;
   let remainingCredits = options.availableCredits;
   const jobId = options.job.id;
   const requiredHeadcount = options.job.requiredHeadcount ?? null;
@@ -647,15 +783,39 @@ async function scheduleBatchedMessages(
       }
     }
 
+    batchNumber++;
+    const batchId = `${options.campaign.id}-batch-${batchNumber}`;
     const allowedBatchSize = Math.min(MESSAGE_BATCH_SIZE, remainingCredits);
     const batch = contacts.slice(index, index + allowedBatchSize);
     if (!batch.length) {
       return;
     }
 
+    // Log batch_created event
+    console.log(`[Messaging] Creating batch ${batchId} with ${batch.length} contacts`);
+    await storage.createMessageLog({
+      organizationId: options.organizationId,
+      jobId,
+      campaignId: options.campaign.id,
+      contactId: batch[0].id, // Use first contact as reference
+      eventType: "batch_created",
+      channel: "sms",
+      status: "pending",
+      batchId,
+      scheduledAt: new Date(),
+      metadata: JSON.stringify({
+        batchNumber,
+        batchSize: batch.length,
+        totalContacts: contacts.length,
+        remainingCredits,
+        messageType: options.customMessage ? 'custom' : 'template',
+      }),
+    });
+
     const sent = await sendBatchMessages(batch, {
       job: options.job,
       template: options.template,
+      customMessage: options.customMessage,
       campaign: options.campaign,
       organizationId: options.organizationId,
       userId: options.userId,
@@ -663,6 +823,7 @@ async function scheduleBatchedMessages(
       twilioClient: options.twilioClient,
       fromNumber: options.fromNumber,
       rosterBaseUrl: options.rosterBaseUrl,
+      batchId,
     });
 
     remainingCredits -= sent;
@@ -703,6 +864,130 @@ async function sendRescheduleNotifications(
       return 0;
     }
 
+    // Get Job Update template
+    const templates = await storage.getTemplates(organizationId);
+    const updateTemplate = templates.find(
+      (t) => t.name.toLowerCase().trim() === "job update"
+    );
+
+    if (!updateTemplate) {
+      console.error("[Reschedule] Job Update template not found");
+      return 0;
+    }
+
+    // Get device tokens for contacts
+    const contactIds = contacts.map(c => c.id);
+    const deviceTokens = await storage.getDeviceTokensForContacts(contactIds);
+    const contactsWithTokens = deviceTokens.map(dt => ({
+      contactId: dt.contactId,
+      token: dt.token,
+      platform: dt.platform as "ios" | "android",
+    }));
+
+    // Send push notifications to contacts with device tokens
+    let pushSuccessCount = 0;
+    let pushFailedCount = 0;
+    const contactsToSms = [...contacts];
+
+    if (contactsWithTokens.length > 0) {
+      const formattedDate = format(new Date(job.startTime), "MMM d, yyyy");
+      const formattedTime = format(new Date(job.startTime), "h:mm a");
+      const notificationTitle = "Job Updated";
+      const notificationBody = `${job.name} has been updated. New time: ${formattedDate} at ${formattedTime}.`;
+
+      const pushResult = await sendPushNotificationsToContacts(
+        contactsWithTokens,
+        {
+          title: notificationTitle,
+          body: notificationBody,
+          data: {
+            type: "job_update",
+            jobId: job.id,
+            action: "view_messages",
+          },
+        }
+      );
+
+      pushSuccessCount = pushResult.success.length;
+      pushFailedCount = pushResult.failed.length;
+
+      // Create delivery records and messages for successful push notifications
+      const fallbackDueAt = new Date(Date.now() + 30000); // 30 seconds from now
+      
+      for (const { contactId, notificationId, token } of pushResult.notificationIds) {
+        const contact = contacts.find(c => c.id === contactId);
+        if (contact) {
+          const delivery = await storage.createPushNotificationDelivery({
+            contactId,
+            jobId: job.id,
+            campaignId: null,
+            organizationId,
+            templateId: updateTemplate.id,
+            customMessage: null,
+            deviceToken: token,
+            notificationId,
+            status: "sent",
+            fallbackDueAt,
+            fallbackProcessed: false,
+          });
+
+          // Create message record
+          const messageContent = renderTemplate(updateTemplate.content, contact, job);
+          await storage.createMessage(organizationId, userId, {
+            contactId,
+            jobId: job.id,
+            campaignId: null,
+            direction: "outbound",
+            content: messageContent,
+            status: "sent",
+            twilioSid: null,
+          });
+
+          // Log push_sent event
+          await storage.createMessageLog({
+            organizationId,
+            jobId: job.id,
+            campaignId: null,
+            contactId,
+            eventType: "push_sent",
+            channel: "push",
+            status: "success",
+            notificationId,
+            pushDeliveryId: delivery.id,
+            scheduledAt: new Date(),
+            sentAt: new Date(),
+            metadata: JSON.stringify({ 
+              platform: deviceTokens.find(dt => dt.contactId === contactId && dt.token === token)?.platform,
+              deviceToken: token,
+              fallbackDueAt: fallbackDueAt.toISOString(),
+            }),
+          });
+
+          // Log sms_fallback_scheduled event
+          await storage.createMessageLog({
+            organizationId,
+            jobId: job.id,
+            campaignId: null,
+            contactId,
+            eventType: "sms_fallback_scheduled",
+            channel: "sms",
+            status: "pending",
+            pushDeliveryId: delivery.id,
+            scheduledAt: fallbackDueAt,
+            metadata: JSON.stringify({ 
+              fallbackDueAt: fallbackDueAt.toISOString(),
+              reason: "Push notification sent, SMS fallback scheduled if not delivered",
+            }),
+          });
+        }
+      }
+
+      // Remove contacts that successfully received push notifications from SMS list
+      const pushSuccessSet = new Set(pushResult.success);
+      contactsToSms.splice(0, contactsToSms.length, ...contacts.filter(contact => !pushSuccessSet.has(contact.id)));
+    }
+
+    // Send SMS to contacts without tokens or where push failed
     let twilioClient: any = null;
     let fromNumber = "";
 
@@ -713,14 +998,12 @@ async function sendRescheduleNotifications(
       console.log("Twilio not configured, reschedule notifications will be logged only");
     }
 
-    const scheduledTime = new Date(job.startTime).toLocaleString();
-    const message = `UPDATE: ${job.name} has been rescheduled. New time: ${scheduledTime}. Location: ${job.location}. Reply Y to confirm or N to decline.`;
-
-    for (const contact of contacts) {
+    for (const contact of contactsToSms) {
       if (!contact || contact.isOptedOut) {
         continue;
       }
 
+      const messageContent = renderTemplate(updateTemplate.content, contact, job);
       let status: string = "sent";
       let twilioSid: string | null = null;
 
@@ -728,7 +1011,7 @@ async function sendRescheduleNotifications(
         try {
           const e164Phone = constructE164Phone(contact.countryCode || "US", contact.phone);
           const twilioMessage = await twilioClient.messages.create({
-            body: message,
+            body: messageContent,
             from: fromNumber,
             to: e164Phone,
           });
@@ -739,7 +1022,7 @@ async function sendRescheduleNotifications(
         }
       } else {
         twilioSid = `dev-${Date.now()}`;
-        console.log(`[DEV MODE] Would send reschedule SMS to ${contact.phone}: ${message}`);
+        console.log(`[DEV MODE] Would send reschedule SMS to ${contact.phone}: ${messageContent}`);
       }
 
       await storage.createMessage(organizationId, userId, {
@@ -747,7 +1030,7 @@ async function sendRescheduleNotifications(
         jobId: job.id,
         campaignId: null,
         direction: "outbound",
-        content: message,
+        content: messageContent,
         status,
         twilioSid,
       });
@@ -757,14 +1040,22 @@ async function sendRescheduleNotifications(
       }
     }
 
-    if (deliveredCount > 0) {
-      await creditService.consumeCreditsForOrganization(
-        organizationId,
-        deliveredCount,
-        `Reschedule notification for job ${job.id}`,
-        null
-      );
+    // Total delivered includes both push and SMS
+    const totalDelivered = pushSuccessCount + deliveredCount;
+
+    if (totalDelivered > 0) {
+      // Only consume credits for SMS (push notifications don't consume credits)
+      if (deliveredCount > 0) {
+        await creditService.consumeCreditsForOrganization(
+          organizationId,
+          deliveredCount,
+          `Reschedule notification for job ${job.id}`,
+          null
+        );
+      }
     }
+
+    console.log(`[Reschedule] Push notifications: ${pushSuccessCount} sent, ${pushFailedCount} failed. SMS: ${deliveredCount} sent.`);
   } catch (error) {
     console.error("Reschedule notification error:", error);
   }
@@ -837,6 +1128,130 @@ async function notifyJobCancellation(
       return 0;
     }
 
+    // Get Job Cancellation template
+    const templates = await storage.getTemplates(organizationId);
+    const cancellationTemplate = templates.find(
+      (t) => t.name.toLowerCase().trim() === "job cancellation"
+    );
+
+    if (!cancellationTemplate) {
+      console.error("[Cancellation] Job Cancellation template not found");
+      return 0;
+    }
+
+    // Get device tokens for contacts
+    const contactIds = contacts.map(c => c.id);
+    const deviceTokens = await storage.getDeviceTokensForContacts(contactIds);
+    const contactsWithTokens = deviceTokens.map(dt => ({
+      contactId: dt.contactId,
+      token: dt.token,
+      platform: dt.platform as "ios" | "android",
+    }));
+
+    // Send push notifications to contacts with device tokens
+    let pushSuccessCount = 0;
+    let pushFailedCount = 0;
+    const contactsToSms = [...contacts];
+
+    if (contactsWithTokens.length > 0) {
+      const formattedDate = format(new Date(job.startTime), "MMM d, yyyy");
+      const formattedTime = format(new Date(job.startTime), "h:mm a");
+      const notificationTitle = "Job Cancelled";
+      const notificationBody = `${job.name} scheduled for ${formattedDate} at ${formattedTime} has been cancelled.`;
+
+      const pushResult = await sendPushNotificationsToContacts(
+        contactsWithTokens,
+        {
+          title: notificationTitle,
+          body: notificationBody,
+          data: {
+            type: "job_cancellation",
+            jobId: job.id,
+            action: "view_messages",
+          },
+        }
+      );
+
+      pushSuccessCount = pushResult.success.length;
+      pushFailedCount = pushResult.failed.length;
+
+      // Create delivery records and messages for successful push notifications
+      const fallbackDueAt = new Date(Date.now() + 30000); // 30 seconds from now
+      
+      for (const { contactId, notificationId, token } of pushResult.notificationIds) {
+        const contact = contacts.find(c => c.id === contactId);
+        if (contact) {
+          const delivery = await storage.createPushNotificationDelivery({
+            contactId,
+            jobId: job.id,
+            campaignId: null,
+            organizationId,
+            templateId: cancellationTemplate.id,
+            customMessage: null,
+            deviceToken: token,
+            notificationId,
+            status: "sent",
+            fallbackDueAt,
+            fallbackProcessed: false,
+          });
+
+          // Create message record
+          const messageContent = renderTemplate(cancellationTemplate.content, contact, job);
+          await storage.createMessage(organizationId, userId, {
+            contactId,
+            jobId: job.id,
+            campaignId: null,
+            direction: "outbound",
+            content: messageContent,
+            status: "sent",
+            twilioSid: null,
+          });
+
+          // Log push_sent event
+          await storage.createMessageLog({
+            organizationId,
+            jobId: job.id,
+            campaignId: null,
+            contactId,
+            eventType: "push_sent",
+            channel: "push",
+            status: "success",
+            notificationId,
+            pushDeliveryId: delivery.id,
+            scheduledAt: new Date(),
+            sentAt: new Date(),
+            metadata: JSON.stringify({ 
+              platform: deviceTokens.find(dt => dt.contactId === contactId && dt.token === token)?.platform,
+              deviceToken: token,
+              fallbackDueAt: fallbackDueAt.toISOString(),
+            }),
+          });
+
+          // Log sms_fallback_scheduled event
+          await storage.createMessageLog({
+            organizationId,
+            jobId: job.id,
+            campaignId: null,
+            contactId,
+            eventType: "sms_fallback_scheduled",
+            channel: "sms",
+            status: "pending",
+            pushDeliveryId: delivery.id,
+            scheduledAt: fallbackDueAt,
+            metadata: JSON.stringify({ 
+              fallbackDueAt: fallbackDueAt.toISOString(),
+              reason: "Push notification sent, SMS fallback scheduled if not delivered",
+            }),
+          });
+        }
+      }
+
+      // Remove contacts that successfully received push notifications from SMS list
+      const pushSuccessSet = new Set(pushResult.success);
+      contactsToSms.splice(0, contactsToSms.length, ...contacts.filter(contact => !pushSuccessSet.has(contact.id)));
+    }
+
+    // Send SMS to contacts without tokens or where push failed
     let twilioClient: any = null;
     let fromNumber = "";
 
@@ -847,14 +1262,12 @@ async function notifyJobCancellation(
       console.log("Twilio not configured, cancellation notifications will be logged only");
     }
 
-    const scheduledTime = new Date(job.startTime).toLocaleString();
-    const message = `UPDATE: ${job.name} scheduled for ${scheduledTime} has been cancelled. Please stand by for future opportunities.`;
-
-    for (const contact of contacts) {
+    for (const contact of contactsToSms) {
       if (!contact || contact.isOptedOut) {
         continue;
       }
 
+      const messageContent = renderTemplate(cancellationTemplate.content, contact, job);
       let status: string = "sent";
       let twilioSid: string | null = null;
 
@@ -862,7 +1275,7 @@ async function notifyJobCancellation(
         try {
           const e164Phone = constructE164Phone(contact.countryCode || "US", contact.phone);
           const twilioMessage = await twilioClient.messages.create({
-            body: message,
+            body: messageContent,
             from: fromNumber,
             to: e164Phone,
           });
@@ -873,7 +1286,7 @@ async function notifyJobCancellation(
         }
       } else {
         twilioSid = `dev-${Date.now()}`;
-        console.log(`[DEV MODE] Would send cancellation SMS to ${contact.phone}: ${message}`);
+        console.log(`[DEV MODE] Would send cancellation SMS to ${contact.phone}: ${messageContent}`);
       }
 
       await storage.createMessage(organizationId, userId, {
@@ -881,7 +1294,7 @@ async function notifyJobCancellation(
         jobId: job.id,
         campaignId: null,
         direction: "outbound",
-        content: message,
+        content: messageContent,
         status,
         twilioSid,
       });
@@ -897,18 +1310,154 @@ async function notifyJobCancellation(
       }
     }
 
-    if (deliveredCount > 0) {
-      await creditService.consumeCreditsForOrganization(
-        organizationId,
-        deliveredCount,
-        `Cancellation notification for job ${job.id}`,
-        null
-      );
+    // Total delivered includes both push and SMS
+    const totalDelivered = pushSuccessCount + deliveredCount;
+
+    if (totalDelivered > 0) {
+      // Only consume credits for SMS (push notifications don't consume credits)
+      if (deliveredCount > 0) {
+        await creditService.consumeCreditsForOrganization(
+          organizationId,
+          deliveredCount,
+          `Cancellation notification for job ${job.id}`,
+          null
+        );
+      }
     }
+
+    console.log(`[Cancellation] Push notifications: ${pushSuccessCount} sent, ${pushFailedCount} failed. SMS: ${deliveredCount} sent.`);
   } catch (error) {
     console.error("Cancellation notification error:", error);
   }
   return deliveredCount;
+}
+
+/**
+ * Generate recurring job instances based on recurrence pattern
+ * Pattern format: {type: "daily"|"weekly"|"monthly", interval: number, daysOfWeek?: number[], endDate?: string}
+ */
+async function generateRecurringJobs(
+  parentJob: Job,
+  pattern: any,
+  organizationId: string,
+  userId: string,
+  skillRequirements: InsertJobSkillRequirement[]
+): Promise<Job[]> {
+  const generatedJobs: Job[] = [];
+  
+  if (!pattern || !pattern.type) {
+    return generatedJobs;
+  }
+
+  const startDate = new Date(parentJob.startTime);
+  const endDate = pattern.endDate ? new Date(pattern.endDate) : null;
+  const interval = pattern.interval || 1;
+  const duration = parentJob.endTime.getTime() - parentJob.startTime.getTime();
+  
+  let currentDate = new Date(startDate);
+  let sequence = 1;
+  
+  // Maximum 1000 instances to prevent runaway generation
+  const maxInstances = 1000;
+  
+  while (generatedJobs.length < maxInstances) {
+    // Check if we've passed the end date
+    if (endDate && isAfter(currentDate, endDate)) {
+      break;
+    }
+    
+    // Skip the parent job (first instance)
+    if (currentDate.getTime() === startDate.getTime()) {
+      currentDate = getNextOccurrence(currentDate, pattern, interval);
+      continue;
+    }
+    
+    const newStartTime = new Date(currentDate);
+    const newEndTime = new Date(newStartTime.getTime() + duration);
+    
+    // Create child job
+    const childJobData: any = {
+      name: parentJob.name,
+      location: parentJob.location,
+      startTime: newStartTime,
+      endTime: newEndTime,
+      requiredHeadcount: parentJob.requiredHeadcount,
+      notes: parentJob.notes,
+    };
+    if (parentJob.departmentId) {
+      childJobData.departmentId = parentJob.departmentId;
+    }
+    if (parentJob.id) {
+      childJobData.parentJobId = parentJob.id;
+    }
+    if (sequence) {
+      childJobData.recurrenceSequence = sequence;
+    }
+    const childJob = await storage.createJob(organizationId, userId, childJobData);
+    
+    // Copy skill requirements
+    if (skillRequirements.length > 0) {
+      await storage.replaceJobSkillRequirements(
+        childJob.id,
+        skillRequirements.map((req) => ({
+          ...req,
+          jobId: childJob.id,
+        })),
+      );
+    }
+    
+    generatedJobs.push(childJob);
+    sequence++;
+    
+    // Calculate next occurrence
+    currentDate = getNextOccurrence(currentDate, pattern, interval);
+    
+    // Safety check: if next occurrence is same or earlier, break to prevent infinite loop
+    if (currentDate.getTime() <= newStartTime.getTime()) {
+      break;
+    }
+  }
+  
+  return generatedJobs;
+}
+
+/**
+ * Get the next occurrence date based on recurrence pattern
+ */
+function getNextOccurrence(currentDate: Date, pattern: any, interval: number): Date {
+  switch (pattern.type) {
+    case "daily":
+      return addDays(currentDate, interval);
+    
+    case "weekly":
+      if (pattern.daysOfWeek && Array.isArray(pattern.daysOfWeek) && pattern.daysOfWeek.length > 0) {
+        // For weekly with specific days, find next matching day
+        const currentDay = getDay(currentDate); // 0 = Sunday, 1 = Monday, etc.
+        const sortedDays = [...pattern.daysOfWeek].sort((a, b) => a - b);
+        
+        // Find next day in this week
+        const nextDayThisWeek = sortedDays.find((day) => day > currentDay);
+        if (nextDayThisWeek !== undefined) {
+          const daysToAdd = nextDayThisWeek - currentDay;
+          return addDays(currentDate, daysToAdd);
+        }
+        
+        // If no day found this week, go to first day of next week cycle
+        const firstDayNextWeek = sortedDays[0];
+        const daysToFirstDay = 7 - currentDay + firstDayNextWeek + (interval - 1) * 7;
+        return addDays(currentDate, daysToFirstDay);
+      } else {
+        // No specific days, just add weeks
+        return addWeeks(currentDate, interval);
+      }
+    
+    case "monthly":
+      return addMonths(currentDate, interval);
+    
+    default:
+      // Default to daily if unknown type
+      return addDays(currentDate, interval);
+  }
 }
 
 async function checkAndNotifyJobFulfillment(job: Job, organizationId: string): Promise<void> {
@@ -1037,42 +1586,72 @@ async function syncJobToCalendars(userId: string, job: any): Promise<void> {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Public logging endpoint (no authentication required)
-  app.post('/log', express.json(), async (req, res) => {
-    try {
-      const { message, level = 'error', metadata = {} } = req.body;
-      
-      if (!message) {
-        return res.status(400).json({ error: 'message is required' });
-      }
-      
-      // Log to server console with level
-      const logMessage = `[RemoteLog ${level.toUpperCase()}] ${message}`;
-      if (level === 'error') {
-        console.error(logMessage, metadata);
-      } else if (level === 'warn') {
-        console.warn(logMessage, metadata);
-      } else {
-        console.log(logMessage, metadata);
-      }
-      
-      res.json({ success: true, received: true });
-    } catch (error: any) {
-      console.error('[Log] Error processing log request:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-  
-  // Serve Apple App Site Association file for password autofill
+  // Serve Apple App Site Association file for Universal Links
+  // Must be before other routes to ensure proper routing
   app.get('/.well-known/apple-app-site-association', (req, res, next) => {
-    const aasaPath = path.join(import.meta.dirname, 'public', '.well-known', 'apple-app-site-association');
+    const aasaPath = path.join(process.cwd(), 'server', 'public', '.well-known', 'apple-app-site-association');
+    
+    // Set Content-Type header explicitly
     res.setHeader('Content-Type', 'application/json');
+    
+    // Send file and ensure response ends
     res.sendFile(aasaPath, (err) => {
       if (err) {
         console.error('Error serving AASA file:', err);
         res.status(404).json({ error: 'AASA file not found' });
       }
+      // Response is automatically ended by sendFile, so don't call next()
     });
+  });
+
+  // Public log endpoint for client-side error logging
+  app.post('/log', express.json(), async (req, res) => {
+    try {
+      const { message, level = 'error', metadata = {} } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+      
+      const fs = await import('fs/promises');
+      const logsDir = path.join(process.cwd(), 'logs');
+      const logFileName = `app-errors-${new Date().toISOString().split('T')[0]}.log`;
+      const logFilePath = path.join(logsDir, logFileName);
+
+      // Create logs directory if it doesn't exist
+      try {
+        await fs.mkdir(logsDir, { recursive: true });
+      } catch (err: any) {
+        if (err.code !== 'EEXIST') {
+          console.error('Failed to create logs directory:', err);
+        }
+      }
+
+      // Format log entry
+      const timestamp = new Date().toISOString();
+      const logEntry = {
+        timestamp,
+        level,
+        message,
+        metadata: {
+          ...metadata,
+          userAgent: req.headers['user-agent'],
+          ip: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+        },
+      };
+
+      // Append to log file
+      const logLine = JSON.stringify(logEntry) + '\n';
+      await fs.appendFile(logFilePath, logLine, 'utf8');
+
+      // Also log to console for immediate visibility
+      console.log(`[Client ${level.toUpperCase()}]`, message, metadata);
+      
+      res.json({ success: true, logged: true });
+    } catch (error: any) {
+      console.error('Error writing to log file:', error);
+      res.status(500).json({ error: 'Failed to log message' });
+      }
   });
   
   // Serve static files from attached_assets
@@ -1115,6 +1694,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   await ensureDefaultPlatformAdmin();
   
+  const JWT_SECRET = process.env.MOBILE_JWT_SECRET || process.env.SESSION_SECRET || "dev-mobile-jwt";
+  const getAuthToken = (req: any): string | null => {
+    const auth = req.headers?.authorization;
+    if (auth && typeof auth === "string" && auth.startsWith("Bearer ")) return auth.slice(7);
+    const headerToken = req.headers?.["x-access-token"];
+    if (headerToken && typeof headerToken === "string") return headerToken;
+    return null;
+  };
+  
   // Middleware to check authentication
   const requireAuth = async (req:any, res:any, next:any) => {
     try {
@@ -1125,7 +1713,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.user = user;
         return next();
       }
-   // 2. Check for X-User-ID header (mobile apps)
+      // 2. JWT (mobile apps)
+      const bearer = getAuthToken(req);
+      if (bearer) {
+        try {
+          const decoded = jwt.verify(bearer, JWT_SECRET) as any;
+          if (decoded?.type === "user" && decoded?.id) {
+            const user = await storage.getUser(decoded.id);
+            if (!user) return res.status(401).json({ message: "User not found" });
+            req.user = user;
+            req.userId = decoded.id;
+            return next();
+          }
+        } catch {
+          // fall through
+        }
+      }
+      // 3. Check for X-User-ID header (legacy mobile)
       const userId = req.headers['x-user-id'] as string;
       if (userId) {
         const user = await storage.getUser(userId);
@@ -1134,7 +1738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.userId = userId; // Set for consistency
         return next();
       }
-      // 2. Fallback for native apps (Capacitor manually sends cookie)
+      // 4. Fallback for native apps (Capacitor manually sends cookie)
       const rawCookie = req.headers.cookie;
       if (rawCookie) {
         const match = rawCookie.match(/connect\.sid=([^;]+)/);
@@ -1161,7 +1765,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
   
-      // 3. If no session at all
+      // 5. If no session at all
       return res.status(401).json({ message: "Not authenticated" });
   
     } catch (err) {
@@ -1173,7 +1777,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Middleware to check contact authentication
   const requireContactAuth = async (req: any, res: any, next: any) => {
     try {
-      // 1. Check for X-Contact-ID header (mobile apps)
+      // Debug logging to inspect incoming auth headers (tokens truncated)
+      const authHeader = typeof req.headers?.authorization === "string" ? req.headers.authorization.slice(0, 24) + "..." : undefined;
+      const xAccessToken = typeof req.headers?.["x-access-token"] === "string" ? (req.headers["x-access-token"] as string).slice(0, 24) + "..." : undefined;
+      const xContactId = req.headers?.["x-contact-id"];
+      const hasCookie = Boolean(req.headers?.cookie);
+      console.log("[ContactAuth] incoming headers", { authHeader, xAccessToken, xContactId, hasCookie });
+
+      // 1. JWT (mobile apps)
+      const bearer = getAuthToken(req);
+      if (bearer) {
+        try {
+          const decoded = jwt.verify(bearer, JWT_SECRET) as any;
+          if (decoded?.type === "contact" && decoded?.id) {
+            const contact = await storage.getContactById(decoded.id);
+            if (!contact) return res.status(401).json({ message: "Contact not found" });
+            if (!contact.hasLogin) return res.status(401).json({ message: "Contact login not enabled" });
+            req.contact = contact;
+            req.contactId = decoded.id;
+            return next();
+          }
+          if (decoded?.type === "user" && decoded?.id) {
+            const user = await storage.getUser(decoded.id);
+            if (user) {
+              req.user = user;
+              req.userId = decoded.id;
+            }
+          }
+        } catch {
+          // fall through
+        }
+      }
+
+      // 2. Check for X-Contact-ID header (legacy mobile)
       const contactId = req.headers['x-contact-id'] as string;
       if (contactId) {
         const contact = await storage.getContactById(contactId);
@@ -1187,7 +1823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return next();
       }
 
-      // 2. Normal session check (browser)
+      // 3. Normal session check (browser)
       if (req.session?.contactId) {
         const contact = await storage.getContactById(req.session.contactId);
         if (!contact) return res.status(401).json({ message: "Contact not found" });
@@ -1195,7 +1831,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return next();
       }
 
-      // 3. Fallback for native apps (Capacitor manually sends cookie)
+      // 4. Fallback for native apps (Capacitor manually sends cookie)
       const rawCookie = req.headers.cookie;
       if (rawCookie) {
         const match = rawCookie.match(/connect\.sid=([^;]+)/);
@@ -1218,7 +1854,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // 4. If no authentication method found
+      // 5. If no authentication method found
       return res.status(401).json({ message: "Not authenticated" });
 
     } catch (err) {
@@ -1454,6 +2090,143 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Department endpoints
+  app.get("/api/departments", requireAuth, async (req: any, res) => {
+    try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      const departments = await storage.getDepartmentsByOrganization(req.user.organizationId);
+      res.json(departments);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/departments", requireAuth, async (req: any, res) => {
+    try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      const { name, description, address } = req.body;
+      if (!name) {
+        return res.status(400).json({ message: "Department name is required" });
+      }
+      const department = await storage.createDepartment(req.user.organizationId, { name, description: description || null, address: address || null });
+      res.json(department);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/departments/:id", requireAuth, async (req: any, res) => {
+    try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      const department = await storage.getDepartmentById(req.params.id, req.user.organizationId);
+      if (!department) {
+        return res.status(404).json({ message: "Department not found" });
+      }
+      res.json(department);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/departments/:id", requireAuth, async (req: any, res) => {
+    try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      const { name, description, address } = req.body;
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (description !== undefined) updates.description = description;
+      if (address !== undefined) updates.address = address;
+      const department = await storage.updateDepartment(req.params.id, req.user.organizationId, updates);
+      res.json(department);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/departments/:id", requireAuth, async (req: any, res) => {
+    try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      await storage.deleteDepartment(req.params.id, req.user.organizationId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/departments/:id/contacts/:contactId", requireAuth, async (req: any, res) => {
+    try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      const { id: departmentId, contactId } = req.params;
+      const assignment = await storage.assignContactToDepartment(contactId, departmentId, req.user.organizationId);
+      res.json(assignment);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/departments/:id/contacts/:contactId", requireAuth, async (req: any, res) => {
+    try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      const { id: departmentId, contactId } = req.params;
+      await storage.removeContactFromDepartment(contactId, departmentId, req.user.organizationId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/departments/:id/contacts", requireAuth, async (req: any, res) => {
+    try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      const contacts = await storage.getContactsByDepartment(req.params.id, req.user.organizationId);
+      res.json(contacts);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/departments/:id/jobs", requireAuth, async (req: any, res) => {
+    try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      const jobs = await storage.getJobsByDepartment(req.params.id, req.user.organizationId);
+      res.json(jobs);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Recent cancellations for dashboard
+  app.get("/api/cancellations/recent", requireAuth, async (req: any, res) => {
+    try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      const cancellations = await storage.getRecentCancellations(req.user.organizationId, 5);
+      res.json(cancellations);
+    } catch (error: any) {
+      console.error("Get cancellations error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Send password reminder to team member
   app.post("/api/organization/members/:userId/password-reminder", requireAuth, requireTeamAdmin, async (req: any, res) => {
     try {
@@ -1554,7 +2327,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.user.organizationId) {
         return res.status(400).json({ message: "User not associated with an organization" });
       }
-      const jobs = await storage.getJobs(req.user.organizationId);
+      
+      // Support departmentId filter
+      const departmentId = req.query.departmentId as string | undefined;
+      let jobs: Job[];
+      if (departmentId) {
+        jobs = await storage.getJobsByDepartment(departmentId, req.user.organizationId);
+      } else {
+        jobs = await storage.getJobs(req.user.organizationId);
+      }
       const jobsWithAvailability = await Promise.all(
         jobs.map(async (job) => {
           const [availability, skillRequirements] = await Promise.all([
@@ -1647,7 +2428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.user.organizationId) {
         return res.status(400).json({ message: "User not associated with an organization" });
       }
-      const job = await storage.getJob(req.params.id );
+      const job = await storage.getJob(req.params.id);
       if (!job) {
         return res.status(404).json({ message: "Job not found" });
       }
@@ -1658,13 +2439,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/jobs/:id/roster", async (req, res) => {
+  app.get("/api/jobs/:id/roster", requireAuth, async (req: any, res) => {
     try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
 
-      
-
+      const organizationId = req.user.organizationId; 
       const job = await storage.getJob(req.params.id);
-      const organizationId =job?.organizationId??"";
 
       if (!job) {
         return res.status(404).json({ message: "Job not found" });
@@ -1685,6 +2467,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/jobs/:id/message-logs", requireAuth, async (req: any, res) => {
+    try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+
+      const jobId = req.params.id;
+      const organizationId = req.user.organizationId;
+
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      // Get all message logs for this job
+      const logs = await storage.getMessageLogsForJob(jobId, organizationId);
+
+      // Get all unique contacts from logs
+      const contactIds = [...new Set(logs.map(log => log.contactId))];
+      const contacts = await Promise.all(
+        contactIds.map(id => storage.getContact(id, organizationId))
+      );
+      const contactMap = new Map(contacts.filter(c => c).map(c => [c!.id, c!]));
+
+      // Aggregate logs by contact to create simplified view
+      const contactSummaries = contactIds.map(contactId => {
+        const contact = contactMap.get(contactId);
+        if (!contact) return null;
+
+        const contactLogs = logs.filter(log => log.contactId === contactId);
+        
+        // Determine channel (push, sms, or portal)
+        const pushLogs = contactLogs.filter(log => log.channel === "push");
+        const smsLogs = contactLogs.filter(log => log.channel === "sms");
+        const portalLogs = contactLogs.filter(log => log.channel === "portal");
+        
+        let channel: "push" | "sms" | "portal" = "sms";
+        if (pushLogs.length > 0) {
+          channel = "push";
+        } else if (portalLogs.length > 0) {
+          channel = "portal";
+        }
+
+        // Check notification status
+        const pushSent = pushLogs.some(log => log.eventType === "push_sent");
+        const pushDelivered = pushLogs.some(log => log.eventType === "push_delivered");
+        const smsSent = smsLogs.some(log => log.eventType === "sms_sent");
+        const smsFallback = smsLogs.some(log => log.eventType === "sms_fallback");
+        
+        const notificationSent = pushSent || smsSent || portalLogs.some(log => log.eventType === "sms_sent");
+        const notificationDelivered = pushDelivered || smsSent || smsFallback || portalLogs.some(log => log.eventType === "sms_sent");
+
+        // Get response status
+        const responseLog = contactLogs.find(log => log.eventType === "response_received");
+        let responseStatus: "accepted" | "declined" | "no_response" | null = null;
+        if (responseLog) {
+          responseStatus = responseLog.responseStatus === "accepted" ? "accepted" : 
+                          responseLog.responseStatus === "declined" ? "declined" : null;
+        } else {
+          // Check availability status to determine if no response
+          const hasNoResponseLog = contactLogs.some(log => log.eventType === "no_response");
+          if (hasNoResponseLog || (!responseLog && notificationSent)) {
+            responseStatus = "no_response";
+          }
+        }
+
+        // Get last event timestamp
+        const lastEvent = contactLogs.sort((a, b) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )[0];
+
+        return {
+          contactId: contact.id,
+          contactName: `${contact.firstName} ${contact.lastName}`,
+          channel,
+          notificationSent,
+          notificationDelivered,
+          responseStatus,
+          lastEventAt: lastEvent?.createdAt || null,
+          events: contactLogs,
+        };
+      }).filter((summary): summary is NonNullable<typeof summary> => summary !== null);
+
+      // Sort by last event time (most recent first)
+      contactSummaries.sort((a, b) => {
+        if (!a.lastEventAt && !b.lastEventAt) return 0;
+        if (!a.lastEventAt) return 1;
+        if (!b.lastEventAt) return -1;
+        return new Date(b.lastEventAt).getTime() - new Date(a.lastEventAt).getTime();
+      });
+
+      res.json({
+        jobId,
+        contacts: contactSummaries,
+        summary: {
+          total: contactSummaries.length,
+          contacted: contactSummaries.filter(c => c.notificationSent).length,
+          delivered: contactSummaries.filter(c => c.notificationDelivered).length,
+          responded: contactSummaries.filter(c => c.responseStatus && c.responseStatus !== "no_response").length,
+          accepted: contactSummaries.filter(c => c.responseStatus === "accepted").length,
+          declined: contactSummaries.filter(c => c.responseStatus === "declined").length,
+          noResponse: contactSummaries.filter(c => c.responseStatus === "no_response").length,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.post("/api/jobs", requireAuth, async (req: any, res) => {
     try {
       if (!req.user.organizationId) {
@@ -1695,22 +2586,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startTime: req.body.startTime ? new Date(req.body.startTime) : undefined,
         endTime: req.body.endTime ? new Date(req.body.endTime) : undefined,
       };
-      const { skillRequirements: skillRequirementsInput, ...jobPayload } = bodyWithDates;
+      const { skillRequirements: skillRequirementsInput, recurrencePattern, ...jobPayload } = bodyWithDates;
       const parsedSkillRequirements = parseSkillRequirementsInput(skillRequirementsInput);
-      const validated = insertJobSchema.parse(jobPayload);
-      const job = await storage.createJob(req.user.organizationId, req.user.id, validated);
+      
+      // Parse recurrence pattern if provided
+      let parsedRecurrencePattern: any = null;
+      if (recurrencePattern) {
+        if (typeof recurrencePattern === "string") {
+          parsedRecurrencePattern = JSON.parse(recurrencePattern);
+        } else {
+          parsedRecurrencePattern = recurrencePattern;
+        }
+      }
+      
+      // Set isRecurring flag if pattern is provided
+      const jobData = {
+        ...jobPayload,
+        isRecurring: !!parsedRecurrencePattern,
+        recurrencePattern: parsedRecurrencePattern ? JSON.stringify(parsedRecurrencePattern) : null,
+      };
+      
+      const validated = insertJobSchema.parse(jobData);
+      const parentJob = await storage.createJob(req.user.organizationId, req.user.id, validated);
 
       const skillRequirements = await storage.replaceJobSkillRequirements(
-        job.id,
+        parentJob.id,
         parsedSkillRequirements.map((requirement) => ({
           ...requirement,
-          jobId: job.id,
+          jobId: parentJob.id,
         })),
       );
 
-      await syncJobToCalendars(req.user.id, job);
+      await syncJobToCalendars(req.user.id, parentJob);
 
-      res.json({ ...job, skillRequirements });
+      // Generate recurring jobs if pattern provided
+      let generatedJobs: Job[] = [];
+      if (parsedRecurrencePattern) {
+        generatedJobs = await generateRecurringJobs(
+          parentJob,
+          parsedRecurrencePattern,
+          req.user.organizationId,
+          req.user.id,
+          parsedSkillRequirements
+        );
+      }
+
+      res.json({ ...parentJob, skillRequirements, generatedJobsCount: generatedJobs.length });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -1817,15 +2738,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const needed = job.requiredHeadcount - remainingConfirmed.length;
 
           if (needed > 0) {
-            // Find available contacts who haven't been invited yet
+            // Find available contacts who haven't been confirmed yet
+            // Only exclude contacts with status "confirmed" - others (declined, maybe, no_reply) can be invited again
             const allContacts = await storage.getContacts(req.user.organizationId);
-            const invitedContactIds = new Set(
-              availabilityRecords.map((record) => record.contactId)
+            const confirmedContactIds = new Set(
+              availabilityRecords
+                .filter((record) => record.status === "confirmed")
+                .map((record) => record.contactId)
             );
 
             
             const uninvitedContacts = allContacts.filter(
-              (contact) => !invitedContactIds.has(contact.id) && !contact.isOptedOut
+              (contact) => !confirmedContactIds.has(contact.id) && !contact.isOptedOut
             );
 
             if (uninvitedContacts.length > 0) {
@@ -1945,6 +2869,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/jobs/:id/reschedule", requireAuth, async (req: any, res) => {
+    try {
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      
+      const job = await storage.getJob(req.params.id);
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+      
+      const { startTime, endTime } = req.body;
+      if (!startTime || !endTime) {
+        return res.status(400).json({ message: "startTime and endTime are required" });
+      }
+      
+      const updatedJob = await storage.updateJob(req.params.id, {
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+      });
+      
+      await syncJobToCalendars(req.user.id, updatedJob);
+      
+      res.json(updatedJob);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.delete("/api/jobs/:id", requireAuth, async (req: any, res) => {
     try {
       if (!req.user.organizationId) {
@@ -1985,12 +2938,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update availability status for a job (admin endpoint)
+  app.patch("/api/jobs/:jobId/availability/:availabilityId", requireAuth, async (req: any, res) => {
+    try {
+      const organizationId = req.user.organizationId;
+      if (!organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+
+      const { jobId, availabilityId } = req.params;
+      const { status } = req.body;
+
+      // Validate status
+      const validStatuses = ["confirmed", "declined", "maybe", "no_reply", "free"];
+      if (!status || !validStatuses.includes(status)) {
+        return res.status(400).json({ 
+          message: `Invalid status. Must be one of: ${validStatuses.join(", ")}` 
+        });
+      }
+
+      // Verify the job exists and belongs to the organization
+      const job = await storage.getJob(jobId);
+      if (!job || job.organizationId !== organizationId) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      // Get the availability record
+      const availabilityRecords = await storage.getAvailability(jobId, organizationId);
+      const availability = availabilityRecords.find(a => a.id === availabilityId);
+
+      if (!availability) {
+        return res.status(404).json({ message: "Availability record not found" });
+      }
+
+      // Update the availability status
+      const updated = await storage.updateAvailability(availabilityId, { status });
+
+      // Update contact status based on the new availability status
+      const contact = await storage.getContact(availability.contactId, organizationId);
+      if (contact) {
+        if (status === "confirmed") {
+          await storage.updateContact(contact.id, { status: "on_job" });
+        } else if (status === "declined" || status === "free") {
+          await storage.updateContact(contact.id, { status: "free" });
+        }
+        // "maybe" and "no_reply" don't change contact status
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/contacts", requireAuth, async (req: any, res) => {
     try {
       if (!req.user.organizationId) {
         return res.status(400).json({ message: "User not associated with an organization" });
       }
-      const contacts = await storage.getContacts(req.user.organizationId);
+      const departmentId = req.query.departmentId as string | undefined;
+      
+      let contacts;
+      if (departmentId) {
+        // Filter contacts by department
+        contacts = await storage.getContactsByDepartment(departmentId, req.user.organizationId);
+      } else {
+        contacts = await storage.getContacts(req.user.organizationId);
+      }
       const allAvailability = await storage.getAllAvailability(req.user.organizationId);
       const jobs = await storage.getJobs(req.user.organizationId);
       
@@ -2031,6 +3045,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       res.json(contactsWithStatus);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/contacts/:id/departments", requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      
+      // Verify the contact belongs to the organization
+      const contact = await storage.getContact(id, req.user.organizationId);
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+      
+      const departments = await storage.getDepartmentsByContact(id, req.user.organizationId);
+      res.json(departments);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -2189,6 +3224,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Skip duplicates
           if (existingPhones.has(contactData.phone)) {
+            results.errors.push(`Contact ${i + 1}: Phone ${contactData.phone} already exists`);
             results.skipped++;
             continue;
           }
@@ -2392,6 +3428,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const jobIds = availabilityRecords.map(a => a.jobId);
       const jobs = [];
       
+      // Get all departments for this organization to include names
+      const allDepartments = await storage.getDepartmentsByOrganization(organizationId);
+      const departmentMap = new Map(allDepartments.map(d => [d.id, d]));
+      
       for (const jobId of jobIds) {
         const job = await storage.getJob(jobId);
         if (job) {
@@ -2402,7 +3442,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Sort jobs by start time
       jobs.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
       
+      // Get unique departments from jobs
+      const jobDepartments = Array.from(new Set(jobs.map(j => j.departmentId).filter(Boolean)))
+        .map(id => departmentMap.get(id))
+        .filter(Boolean) as any[];
+      
       res.json({
+        departments: jobDepartments,
         contact: {
           firstName: contact.firstName,
           lastName: contact.lastName,
@@ -2414,6 +3460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           startTime: job.startTime,
           endTime: job.endTime,
           notes: job.notes,
+          departmentId: job.departmentId,
         })),
       });
     } catch (error: any) {
@@ -2463,6 +3510,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get contact's schedule (upcoming and past jobs)
+  // Get departments for contact (to display department names)
+  app.get("/api/contact/departments", requireContactAuth, async (req: any, res) => {
+    try {
+      const contact = req.contact;
+      const departments = await storage.getDepartmentsByOrganization(contact.organizationId);
+      res.json(departments);
+    } catch (error: any) {
+      console.error("Get contact departments error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/contact/schedule", requireContactAuth, async (req: any, res) => {
     try {
       const contact = req.contact;
@@ -2486,8 +3545,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           startTime: job.startTime,
           endTime: job.endTime,
           notes: job.notes,
+          departmentId: job.departmentId,
           availabilityStatus: availability.status,
           shiftPreference: availability.shiftPreference,
+          availabilityId: availability.id, // Include availability ID for updating
         };
 
         if (new Date(job.startTime) >= now) {
@@ -2504,6 +3565,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ upcoming, past });
     } catch (error: any) {
       console.error("Get contact schedule error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Cancel a contact's assignment for a job (manager initiated)
+  app.post("/api/jobs/:jobId/cancel-contact", requireAuth, async (req: any, res) => {
+    try {
+      const { jobId } = req.params;
+      const { contactId, reason } = req.body;
+
+      if (!req.user.organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      if (!contactId) {
+        return res.status(400).json({ message: "contactId is required" });
+      }
+
+      const job = await storage.getJob(jobId, req.user.organizationId);
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      const contact = await storage.getContact(contactId, req.user.organizationId);
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      // Update availability to cancelled
+      const availabilityRecord = await storage.getAvailabilityForContact(jobId, contactId, req.user.organizationId);
+      if (!availabilityRecord) {
+        await storage.createAvailability(req.user.organizationId, {
+          jobId,
+          contactId,
+          status: "cancelled",
+          shiftPreference: null,
+        });
+      } else {
+        await storage.updateAvailability(availabilityRecord.id, {
+          status: "cancelled",
+        });
+      }
+
+      // Log cancellation
+      await storage.createCancellationLog({
+        jobId,
+        contactId,
+        cancelledBy: req.user.id,
+        reason: reason || null,
+      });
+
+      // Find replacements from invitation pool (uninvited only)
+      const uninvitedPool = await storage.getUninvitedPool(jobId);
+      const candidates = uninvitedPool.filter((entry) => entry.contactId !== contactId).slice(0, 3);
+
+      let replacementsInvited = 0;
+
+      for (const candidate of candidates) {
+        const replacementContact = await storage.getContact(candidate.contactId, req.user.organizationId);
+        if (!replacementContact || replacementContact.isOptedOut) continue;
+
+        const existingAvailability = await storage.getAvailabilityForContact(jobId, candidate.contactId, req.user.organizationId);
+        if (!existingAvailability) {
+          await storage.createAvailability(req.user.organizationId, {
+            jobId,
+            contactId: candidate.contactId,
+            status: "no_reply",
+            shiftPreference: null,
+          });
+        }
+
+        // Mark invited in pool
+        await storage.markInvitationAsInvited(jobId, candidate.contactId);
+
+        // Create vacancy message (DB record)
+        const vacancyMessage = `Vacancy: ${job.name} at ${job.location}. Reply Y to confirm or N to decline.`;
+        await storage.createMessage(req.user.organizationId, req.user.id, {
+          contactId: candidate.contactId,
+          jobId,
+          campaignId: null,
+          direction: "outbound",
+          content: vacancyMessage,
+          status: "sent",
+          twilioSid: null,
+        });
+
+        replacementsInvited += 1;
+      }
+
+      res.json({ success: true, replacementsInvited });
+    } catch (error: any) {
+      console.error("Cancel contact assignment error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -2532,6 +3684,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             startTime: job.startTime,
             endTime: job.endTime,
             notes: job.notes,
+            departmentId: job.departmentId,
             availabilityStatus: availability.status,
             shiftPreference: availability.shiftPreference,
             availabilityId: availability.id, // Include availability ID for updating
@@ -2582,6 +3735,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateContact(contact.id, { status: "free" });
       }
       // "maybe" doesn't change contact status
+
+      // Find push notification delivery for this contact and job to get campaign details
+      // This helps link the response to the original notification
+      const pushDeliveries = await storage.getPushNotificationDeliveriesByContactAndJob(contact.id, availability.jobId);
+      const latestDelivery = pushDeliveries.length > 0 ? pushDeliveries[0] : null;
+
+      // Log response_received event (similar to push notification action endpoint)
+      await storage.createMessageLog({
+        organizationId,
+        jobId: availability.jobId,
+        campaignId: latestDelivery?.campaignId || null,
+        contactId: contact.id,
+        eventType: "response_received",
+        channel: latestDelivery ? "push" : "portal", // Use "portal" if no push delivery found (user accepted via web/mobile app directly)
+        status: "success",
+        notificationId: latestDelivery?.notificationId || null,
+        pushDeliveryId: latestDelivery?.id || null,
+        responseStatus: status === "confirmed" ? "accepted" : status === "declined" ? "declined" : "maybe",
+      });
 
       res.json({ success: true, status });
     } catch (error: any) {
@@ -2647,35 +3819,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Platform must be 'ios' or 'android'" });
       }
 
-      // Validate token format
-      const tokenStr = String(token).trim();
-      
-      if (platform === "ios") {
-        // iOS APNs tokens must be exactly 64 hexadecimal characters
-        const isValid = /^[0-9a-fA-F]{64}$/.test(tokenStr);
-        if (!isValid) {
-          console.error(`[DeviceToken] Invalid iOS token format!`);
-          console.error(`Token: ${tokenStr}`);
-          console.error(`Length: ${tokenStr.length} (expected 64)`);
-          return res.status(400).json({ 
-            message: `Invalid iOS device token format. Expected 64 hexadecimal characters, got ${tokenStr.length} characters. Token: ${tokenStr.substring(0, 20)}...` 
-          });
-        }
-        console.log(`[DeviceToken] ✅ Valid iOS token (64 hex chars): ${tokenStr.substring(0, 20)}...${tokenStr.substring(44)}`);
-      } else if (platform === "android") {
-        // Android FCM tokens are longer and can contain various characters
-        if (tokenStr.length < 50) {
-          console.error(`[DeviceToken] Invalid Android token length!`);
-          console.error(`Token: ${tokenStr}`);
-          console.error(`Length: ${tokenStr.length} (expected at least 50)`);
-          return res.status(400).json({ 
-            message: `Invalid Android device token format. Token too short: ${tokenStr.length} characters.` 
-          });
-        }
-        console.log(`[DeviceToken] ✅ Valid Android token (${tokenStr.length} chars): ${tokenStr.substring(0, 20)}...${tokenStr.substring(tokenStr.length - 20)}`);
-      }
-
-      await storage.saveDeviceToken(contact.id, tokenStr, platform);
+      await storage.saveDeviceToken(contact.id, token, platform);
       console.log(`[DeviceToken] Registered ${platform} token for contact ${contact.id}`);
 
       res.json({ success: true });
@@ -2729,6 +3873,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updatePushNotificationDelivery(delivery.id, {
         status: "delivered",
         deliveredAt: new Date(),
+      });
+
+      // Log push_delivered event
+      await storage.createMessageLog({
+        organizationId: contact.organizationId,
+        jobId: delivery.jobId,
+        campaignId: delivery.campaignId || null,
+        contactId: contact.id,
+        eventType: "push_delivered",
+        channel: "push",
+        status: "delivered",
+        notificationId: delivery.notificationId,
+        pushDeliveryId: delivery.id,
       });
 
       console.log(`[PushNotification] Delivery confirmed for notification ${notificationId} (contact ${contact.id})`);
@@ -2813,6 +3970,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Log response_received event
+      await storage.createMessageLog({
+        organizationId,
+        jobId: jobId,
+        campaignId: delivery.campaignId,
+        contactId: contact.id,
+        eventType: "response_received",
+        channel: "push",
+        status: "success",
+        notificationId: notificationId,
+        pushDeliveryId: delivery.id,
+        responseStatus: action === "accept" ? "accepted" : "declined",
+      });
+
       console.log(`[PushNotification] Action ${action} processed for notification ${notificationId} (contact ${contact.id}, job ${jobId})`);
 
       res.json({ 
@@ -2821,6 +3992,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Push notification action error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update contact's own profile
+  app.patch("/api/contact/profile", requireContactAuth, async (req: any, res) => {
+    try {
+      const contact = req.contact;
+      const { firstName, lastName, email, phone, countryCode } = req.body;
+
+      const updateData: any = {};
+      if (firstName !== undefined) updateData.firstName = firstName;
+      if (lastName !== undefined) updateData.lastName = lastName;
+      if (email !== undefined) updateData.email = email;
+      if (phone !== undefined) updateData.phone = phone;
+      if (countryCode !== undefined) updateData.countryCode = countryCode;
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No fields to update" });
+      }
+
+      const updatedContact = await storage.updateContact(contact.id, updateData);
+      
+      res.json({
+        id: updatedContact.id,
+        firstName: updatedContact.firstName,
+        lastName: updatedContact.lastName,
+        email: updatedContact.email,
+        phone: updatedContact.phone,
+        countryCode: updatedContact.countryCode,
+      });
+    } catch (error: any) {
+      console.error("Update contact profile error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Change contact's password
+  app.post("/api/contact/change-password", requireContactAuth, async (req: any, res) => {
+    try {
+      const contact = req.contact;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "Current password and new password are required" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "New password must be at least 8 characters" });
+      }
+
+      // Verify current password
+      if (!contact.password) {
+        return res.status(400).json({ message: "No password set for this account" });
+      }
+
+      const bcrypt = await import("bcrypt");
+      const isPasswordValid = await bcrypt.compare(currentPassword, contact.password);
+      if (!isPasswordValid) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
+
+      // Hash and update password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateContact(contact.id, { password: hashedPassword });
+
+      res.json({ success: true, message: "Password updated successfully" });
+    } catch (error: any) {
+      console.error("Change contact password error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -3173,7 +4413,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Not authorized to update this template" });
       }
 
+      // Check if this is a protected template (Job Invitation, Job Cancellation, Job Update)
+      const isProtectedTemplate = (name: string): boolean => {
+        const normalized = name.toLowerCase().trim();
+        return normalized === "job invitation" || 
+               normalized === "job cancellation" || 
+               normalized === "job update";
+      };
+
+      const isProtected = isProtectedTemplate(template.name);
+
+      // Prevent name changes for protected templates
+      if (isProtected && req.body.name && req.body.name.trim().toLowerCase() !== template.name.toLowerCase()) {
+        return res.status(400).json({ message: `Cannot change the name of the ${template.name} template` });
+      }
+
       const validated = insertTemplateSchema.parse(req.body);
+      // Ensure name is not changed for protected templates
+      if (isProtected) {
+        validated.name = template.name;
+      }
       const updated = await storage.updateTemplate(req.params.id, validated);
       res.json(updated);
     } catch (error: any) {
@@ -3194,6 +4453,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (template.userId !== req.user.id) {
         return res.status(403).json({ message: "Not authorized to delete this template" });
       }
+
+      // Check if this is a protected template (Job Invitation, Job Cancellation, Job Update)
+      const isProtectedTemplate = (name: string): boolean => {
+        const normalized = name.toLowerCase().trim();
+        return normalized === "job invitation" || 
+               normalized === "job cancellation" || 
+               normalized === "job update";
+      };
+      
+      // Prevent deletion of protected templates
+      if (isProtectedTemplate(template.name)) {
+        return res.status(400).json({ message: `Cannot delete the ${template.name} template` });
+      }
       
       await storage.deleteTemplate(req.params.id);
       res.json({ success: true });
@@ -3204,11 +4476,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/send-message", requireAuth, async (req: any, res) => {
     try {
-      const { jobId, templateId, contactIds } = req.body;
+      const { jobId, templateId, contactIds, customMessage } = req.body;
       const userId = req.user.id;
       const organizationId = req.user.organizationId;
       if (!organizationId) {
         return res.status(400).json({ message: "User not associated with an organization" });
+      }
+
+      // Validate: either templateId OR customMessage required
+      if (!templateId && !customMessage) {
+        return res.status(400).json({ message: "Template ID or custom message required" });
+      }
+
+      if (customMessage && typeof customMessage !== 'string') {
+        return res.status(400).json({ message: "Custom message must be a string" });
+      }
+
+      if (customMessage && customMessage.trim().length === 0) {
+        return res.status(400).json({ message: "Custom message cannot be empty" });
       }
 
       // Check if user has enough credits
@@ -3218,10 +4503,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const jobRecord = await storage.getJob(jobId);
-      const template = await storage.getTemplate(templateId);
+      
+      // Template is optional now (can use customMessage instead)
+      let template: Template | undefined = undefined;
+      if (templateId) {
+        template = await storage.getTemplate(templateId);
+        if (!template) {
+          return res.status(404).json({ message: "Template not found" });
+        }
+      }
 
-      if (!jobRecord || !template) {
-        return res.status(404).json({ message: "Job or template not found" });
+      if (!jobRecord) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      // Check if this is a job invitation template (only applies when using template)
+      const isJobInvitation = template?.name && 
+        (template.name.toLowerCase().includes("invitation") || 
+         template.name.toLowerCase().includes("job invitation") ||
+         template.name.toLowerCase() === "job invitation");
+
+      // Filter by department if job has a department
+      let filteredContactIds: string[] = contactIds;
+      if (jobRecord.departmentId) {
+        const deptContacts = await storage.getContactsByDepartment(jobRecord.departmentId, organizationId);
+        const deptSet = new Set(deptContacts.map((c) => c.id));
+        filteredContactIds = contactIds.filter((id: string) => deptSet.has(id));
+        if (!filteredContactIds.length) {
+          return res.status(400).json({ message: "No contacts in this department to message" });
+        }
       }
 
       const skillRequirements = await storage.getJobSkillRequirements(jobId);
@@ -3232,8 +4542,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const campaign = await storage.createCampaign(organizationId, userId, {
         jobId,
-        templateId,
+        templateId: templateId ?? null, // Use nullish coalescing to allow null for custom messages
       });
+
+      // Track invitation pool for replacements
 
       let twilioClient: any = null;
       let fromNumber: string = "";
@@ -3245,7 +4557,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("Twilio not configured, messages will be logged only");
       }
 
-      const prioritized = await prioritizeContacts(contactIds, job, organizationId);
+      const prioritizedRaw = await prioritizeContacts(filteredContactIds, job, organizationId);
+      // Exclude contacts in blackout periods entirely
+      const prioritized = prioritizedRaw.filter((entry) => !isWithinBlackout(entry.contact, job));
       if (!prioritized.length) {
         return res.status(400).json({ message: "No eligible contacts to message" });
       }
@@ -3254,6 +4568,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const prioritizedContacts = skillAwarePrioritized.map((entry) => entry.contact);
       const maxDeliverable = Math.min(prioritizedContacts.length, availableCredits);
       const trimmedContacts = prioritizedContacts.slice(0, maxDeliverable);
+
+      // Track invitation pool for replacements
+      await storage.upsertInvitationPool(job.id, campaign.id, trimmedContacts.map((c) => ({ contactId: c.id })));
 
       if (!trimmedContacts.length) {
         return res.status(400).json({ message: "Insufficient SMS credits to send messages" });
@@ -3279,15 +4596,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Send push notifications
+      // Send push notifications for ALL messages (not just job invitations)
       let contactsToSms = [...trimmedContacts];
       let pushSuccessCount = 0;
       let pushFailedCount = 0;
 
       if (contactsWithTokens.length > 0) {
-        const formattedDate = format(new Date(job.startTime), "MMM d, yyyy 'at' h:mm a");
-        const notificationTitle = "New Job Invitation";
-        const notificationBody = `${job.name} - ${formattedDate}`;
+        // Determine notification title and body based on message type
+        let notificationTitle: string;
+        let notificationBody: string;
+        let notificationType: string;
+        let notificationAction: string;
+
+        if (isJobInvitation) {
+          // Job invitation format
+          const formattedDate = format(new Date(job.startTime), "MMM d, yyyy 'at' h:mm a");
+          notificationTitle = "New Job Invitation";
+          notificationBody = `${job.name} - ${formattedDate}`;
+          notificationType = "job_invitation";
+          notificationAction = "view_invitations";
+        } else {
+          // Regular message format
+          // Use template name or "New Message" as title
+          notificationTitle = template?.name || "New Message";
+          
+          // For body, use template/custom message content (truncated if too long)
+          if (customMessage) {
+            notificationBody = customMessage.length > 100 
+              ? customMessage.substring(0, 97) + "..." 
+              : customMessage;
+          } else if (template) {
+            // For template, use a preview (first contact as example for preview)
+            const previewContact = trimmedContacts[0];
+            const previewContent = renderTemplate(template.content, previewContact, job);
+            notificationBody = previewContent.length > 100 
+              ? previewContent.substring(0, 97) + "..." 
+              : previewContent;
+          } else {
+            notificationBody = "You have a new message";
+          }
+          
+          notificationType = "message";
+          notificationAction = "view_messages";
+        }
 
         const pushResult = await sendPushNotificationsToContacts(
           contactsWithTokens,
@@ -3295,9 +4646,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             title: notificationTitle,
             body: notificationBody,
             data: {
-              type: "job_invitation",
+              type: notificationType,
               jobId: job.id,
-              action: "view_invitations",
+              action: notificationAction,
             },
           }
         );
@@ -3305,71 +4656,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pushSuccessCount = pushResult.success.length;
         pushFailedCount = pushResult.failed.length;
 
-        // Create delivery records for successful push notifications
+        // Create delivery records for successful push notifications and log events
+        // Set fallbackDueAt to 30 seconds from now for cron job to pick up
+        const fallbackDueAt = new Date(Date.now() + 30000); // 30 seconds from now
+        
         for (const { contactId, notificationId, token } of pushResult.notificationIds) {
           const contact = trimmedContacts.find(c => c.id === contactId);
           if (contact) {
-            await storage.createPushNotificationDelivery({
+            // Create or update availability record for job invitation
+            // This ensures the invitation appears in the invitations list
+            if (isJobInvitation) {
+              const availabilityRecord = await storage.getAvailabilityForContact(job.id, contactId, organizationId);
+              if (!availabilityRecord) {
+                await storage.createAvailability(organizationId, {
+                  jobId: job.id,
+                  contactId: contact.id,
+                  status: "no_reply",
+                  shiftPreference: null,
+                });
+              } else {
+                await storage.updateAvailability(availabilityRecord.id, {
+                  status: "no_reply",
+                });
+              }
+            }
+
+            const delivery = await storage.createPushNotificationDelivery({
               contactId,
               jobId: job.id,
               campaignId: campaign.id,
+              organizationId,
+              templateId: templateId || null,
+              customMessage: customMessage || null,
               deviceToken: token,
               notificationId,
               status: "sent",
+              fallbackDueAt,
+              fallbackProcessed: false,
+            });
+
+            // Create message record so it appears in the messages list
+            // For job invitations, use the formatted notification body
+            // For regular messages, use the actual message content
+            let messageContentForRecord: string;
+            if (isJobInvitation) {
+              messageContentForRecord = notificationBody; // "Job Name - Date"
+            } else {
+              // Use the actual message content (template or custom)
+              if (customMessage) {
+                messageContentForRecord = customMessage;
+              } else if (template) {
+                messageContentForRecord = renderTemplate(template.content, contact, job);
+              } else {
+                messageContentForRecord = notificationBody;
+              }
+            }
+
+            await storage.createMessage(organizationId, userId, {
+              contactId,
+              jobId: job.id,
+              campaignId: campaign.id,
+              direction: "outbound",
+              content: messageContentForRecord,
+              status: "sent",
+              twilioSid: null, // No Twilio SID for push notifications
+            });
+
+            // Mark contact as invited in pool (only for job invitations)
+            if (isJobInvitation) {
+              await storage.markInvitationAsInvited(job.id, contactId);
+            }
+
+            // Log push_sent event with enhanced details
+            const deviceTokenRecord = deviceTokens.find(dt => dt.contactId === contactId && dt.token === token);
+            await storage.createMessageLog({
+              organizationId,
+              jobId: job.id,
+              campaignId: campaign.id,
+              contactId,
+              eventType: "push_sent",
+              channel: "push",
+              status: "success",
+              notificationId,
+              pushDeliveryId: delivery.id,
+              scheduledAt: new Date(),
+              sentAt: new Date(),
+              metadata: JSON.stringify({ 
+                platform: deviceTokenRecord?.platform, 
+                deviceToken: token,
+                fallbackDueAt: fallbackDueAt.toISOString(),
+              }),
+            });
+
+            // Log sms_fallback_scheduled event
+            await storage.createMessageLog({
+              organizationId,
+              jobId: job.id,
+              campaignId: campaign.id,
+              contactId,
+              eventType: "sms_fallback_scheduled",
+              channel: "sms",
+              status: "pending",
+              pushDeliveryId: delivery.id,
+              scheduledAt: fallbackDueAt,
+              metadata: JSON.stringify({ 
+                fallbackDueAt: fallbackDueAt.toISOString(),
+                reason: "Push notification sent, SMS fallback scheduled if not delivered",
+              }),
             });
           }
         }
 
-        // Set up 30-second timeout to check for delivery and send SMS fallback
-        setTimeout(async () => {
-          try {
-            const undelivered = await storage.getUndeliveredNotifications(30);
-            const undeliveredForThisCampaign = undelivered.filter(
-              d => d.campaignId === campaign.id && d.jobId === job.id
-            );
-
-            if (undeliveredForThisCampaign.length > 0) {
-              console.log(`[SendMessage] ${undeliveredForThisCampaign.length} push notifications not delivered after 30 seconds, sending SMS fallback`);
-              
-              const undeliveredContactIds = new Set(undeliveredForThisCampaign.map(d => d.contactId));
-              const contactsNeedingSMS = trimmedContacts.filter(c => undeliveredContactIds.has(c.id));
-
-              // Update delivery records
-              for (const delivery of undeliveredForThisCampaign) {
-                await storage.updatePushNotificationDelivery(delivery.id, {
-                  status: "sms_fallback",
-                  smsFallbackSentAt: new Date(),
-                });
-              }
-
-              // Send SMS to these contacts
-              if (contactsNeedingSMS.length > 0 && twilioClient && fromNumber) {
-                const baseUrlFromRequest = `${req.protocol}://${req.get("host")}`;
-                const rosterBaseUrl = (process.env.PUBLIC_BASE_URL || baseUrlFromRequest).replace(/\/$/, "");
-                await scheduleBatchedMessages(contactsNeedingSMS, {
-                  job,
-                  template,
-                  campaign,
-                  organizationId,
-                  userId,
-                  availableCredits: contactsNeedingSMS.length,
-                  twilioClient,
-                  fromNumber,
-                  rosterBaseUrl,
-                });
-              }
-            }
-          } catch (error) {
-            console.error("[SendMessage] Error checking undelivered notifications:", error);
+        // Log push_failed events
+        for (const failedContactId of pushResult.failed) {
+          const contact = trimmedContacts.find(c => c.id === failedContactId);
+          if (contact) {
+            const deviceToken = deviceTokens.find(dt => dt.contactId === failedContactId);
+            await storage.createMessageLog({
+              organizationId,
+              jobId: job.id,
+              campaignId: campaign.id,
+              contactId: failedContactId,
+              eventType: "push_failed",
+              channel: "push",
+              status: "failed",
+              metadata: deviceToken ? JSON.stringify({ platform: deviceToken.platform }) : null,
+            });
           }
-        }, 30000); // 30 seconds
+        }
 
-        // Remove contacts that successfully received push notifications from SMS list
-        // (They'll get SMS if delivery receipt doesn't come within 30 seconds)
+        // SMS fallback is now handled by cron job (processPendingSmsFallbacks)
+        // The cron job checks fallbackDueAt in push_notification_deliveries table
+        // and sends SMS to contacts whose push notifications weren't delivered
+        
+        // Remove contacts that successfully received push notifications from immediate SMS list
+        // (They'll get SMS via cron job if delivery receipt doesn't come within 30 seconds)
         const pushSuccessSet = new Set(pushResult.success);
         contactsToSms = trimmedContacts.filter(contact => !pushSuccessSet.has(contact.id));
 
-        console.log(`[SendMessage] Push notifications: ${pushSuccessCount} sent, ${pushFailedCount} failed. SMS will be sent to ${contactsToSms.length} contacts immediately, and to push recipients if not delivered within 30 seconds.`);
+        console.log(`[SendMessage] Push notifications: ${pushSuccessCount} sent, ${pushFailedCount} failed. SMS will be sent to ${contactsToSms.length} contacts immediately. Push recipients will get SMS fallback via cron job if not delivered within 30 seconds.`);
       }
 
       const baseUrlFromRequest = `${req.protocol}://${req.get("host")}`;
@@ -3378,16 +4803,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Only send SMS to contacts without tokens or where push failed
       if (contactsToSms.length > 0) {
         await scheduleBatchedMessages(contactsToSms, {
-        job,
-        template,
-        campaign,
-        organizationId,
-        userId,
+          job,
+          template,
+          customMessage,
+          campaign,
+          organizationId,
+          userId,
           availableCredits: contactsToSms.length,
-        twilioClient,
-        fromNumber,
-        rosterBaseUrl,
-      });
+          twilioClient,
+          fromNumber,
+          rosterBaseUrl,
+        });
       }
 
       res.json({
@@ -3524,7 +4950,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Bulk SMS error:", error);
       res.status(500).json({ message: error.message });
-    }
+    } 
   });
 
   // Stripe webhook handler (requires raw body for signature verification)
@@ -3868,6 +5294,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
             break;
           }
 
+          case "customer.subscription.updated": {
+            const subscription = event.data.object as Stripe.Subscription;
+            const subscriptionId = subscription.id;
+
+            // Find the subscription in our database
+            const allSubscriptions = await storage.getAllSubscriptions?.() || [];
+            const userSubToUpdate = allSubscriptions.find(s => s.stripeSubscriptionId === subscriptionId);
+
+            if (userSubToUpdate) {
+              const subData = subscription as any;
+              const updateData: any = {
+                status: subscription.status,
+              };
+
+              // Handle cancellation at period end
+              if (subscription.cancel_at_period_end) {
+                updateData.cancelAtPeriodEnd = true;
+                if (subData.cancel_at && typeof subData.cancel_at === 'number') {
+                  updateData.cancelAt = new Date(subData.cancel_at * 1000);
+                }
+                console.log(`Subscription ${subscriptionId} set to cancel at period end for user ${userSubToUpdate.userId}`);
+              } else {
+                updateData.cancelAtPeriodEnd = false;
+                updateData.cancelAt = null;
+              }
+
+              // Update period dates if available
+              if (subData.current_period_start && typeof subData.current_period_start === 'number') {
+                updateData.currentPeriodStart = new Date(subData.current_period_start * 1000);
+              }
+              if (subData.current_period_end && typeof subData.current_period_end === 'number') {
+                updateData.currentPeriodEnd = new Date(subData.current_period_end * 1000);
+              }
+
+              await storage.updateSubscription(userSubToUpdate.userId, updateData);
+              console.log(`Subscription ${subscriptionId} updated for user ${userSubToUpdate.userId}, status: ${subscription.status}, cancelAtPeriodEnd: ${subscription.cancel_at_period_end}`);
+            } else {
+              console.error(`Subscription ${subscriptionId} not found in database for update`);
+            }
+            break;
+          }
+
           case "customer.subscription.deleted": {
             const subscription = event.data.object as Stripe.Subscription;
             const subscriptionId = subscription.id;
@@ -3879,8 +5347,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (userSub) {
               await storage.updateSubscription(userSub.userId, {
                 status: "canceled",
+                cancelAtPeriodEnd: false,
+                cancelAt: null,
               });
-              console.log(`Subscription ${subscriptionId} cancelled for user ${userSub.userId}`);
+              console.log(`Subscription ${subscriptionId} deleted/cancelled for user ${userSub.userId}`);
             }
             break;
           }
@@ -3941,7 +5411,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const jobId = recentMessages.length > 0 ? recentMessages[recentMessages.length - 1].jobId : null;
 
-      await storage.createMessage(contact.organizationId, contact.userId, {
+      const inboundMessage = await storage.createMessage(contact.organizationId, contact.userId, {
         contactId: contact.id,
         jobId: jobId,
         campaignId: null,
@@ -3971,6 +5441,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await storage.updateContact(contact.id, { status: "free" });
           }
           // "maybe" and "no_reply" don't change contact status
+
+          // Log response_received event for SMS responses
+          if (parsed.status === "confirmed" || parsed.status === "declined") {
+            // Get campaignId from recent outbound messages
+            const relatedMessage = recentMessages.find(m => m.jobId === jobId);
+            const campaignId = relatedMessage?.campaignId || null;
+
+            await storage.createMessageLog({
+              organizationId: contact.organizationId,
+              jobId: jobId,
+              campaignId: campaignId,
+              contactId: contact.id,
+              eventType: "response_received",
+              channel: "sms",
+              status: "success",
+              messageId: inboundMessage.id,
+              responseStatus: parsed.status === "confirmed" ? "accepted" : "declined",
+              metadata: JSON.stringify({ twilioSid: MessageSid, replyText: Body }),
+            });
+          }
         }
 
         // Send automatic acknowledgement SMS
@@ -4045,7 +5535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validated = insertAvailabilitySchema.parse(req.body);
       
       // Verify the contact belongs to the user
-      const contact = await storage.getContact(validated.contactId, req.user.organizationId);
+      const contact = await storage.getContactById(validated.contactId);
       if (!contact) {
         return res.status(404).json({ message: "Contact not found" });
       }
@@ -4063,9 +5553,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/availability/:id", requireAuth, async (req: any, res) => {
     try {
       const { status, shiftPreference } = req.body;
+      const organizationId = req.user.organizationId;
       
-      // Get all availability records for the user and find the specific one
-      const allAvailability = await storage.getAllAvailability(req.user.id);
+      if (!organizationId) {
+        return res.status(400).json({ message: "User not associated with an organization" });
+      }
+      
+      // Get all availability records for the organization and find the specific one
+      const allAvailability = await storage.getAllAvailability(organizationId);
       const availabilityRecord = allAvailability.find(a => a.id === req.params.id);
       
       if (!availabilityRecord) {
@@ -4230,16 +5725,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/create-checkout-session", async (req, res) => {
+  app.post("/api/create-checkout-session",requireAuth, async (req, res) => {
     try {
       if (!stripe) {
         return res.status(500).json({ message: "Stripe not configured" });
       }
 
-      let userId = req.session.userId;
-      if (!userId) {
-      userId = req.headers['x-user-id'] as string | undefined;
-      }
+      // Get userId from req.user (set by requireAuth middleware) or fallback to session/header
+      let userId = req.user?.id || req.userId || req.session?.userId || req.headers['x-user-id'] as string | undefined;
 
       if (!userId) {
           return res.status(401).json({ message: "Not Authenticated" });

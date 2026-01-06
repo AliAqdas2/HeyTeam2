@@ -1,24 +1,43 @@
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute } from "wouter";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Clock, AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar, MapPin, Clock, AlertCircle, Building2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Job, Contact } from "@shared/schema";
 
 interface RosterData {
   contact: Contact;
   jobs: Job[];
+  departments?: Array<{ id: string; name: string }>;
 }
 
 export default function RosterView() {
   const [, params] = useRoute("/schedule/:token");
   const token = params?.token;
+  const [departmentFilter, setDepartmentFilter] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery<RosterData>({
     queryKey: ["/api/roster", token],
     enabled: !!token,
   });
+
+  // Use departments from API response, or extract from jobs if not provided
+  const availableDepartments = useMemo(() => {
+    if (data?.departments) {
+      return data.departments;
+    }
+    if (!data?.jobs) return [];
+    const deptMap = new Map<string, string>();
+    data.jobs.forEach((job) => {
+      if (job.departmentId && !deptMap.has(job.departmentId)) {
+        deptMap.set(job.departmentId, job.departmentId);
+      }
+    });
+    return Array.from(deptMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [data?.departments, data?.jobs]);
 
   if (isLoading) {
     return (
@@ -46,8 +65,13 @@ export default function RosterView() {
 
   const { contact, jobs } = data;
   
+  // Filter jobs by department if filter is selected
+  const filteredJobs = departmentFilter
+    ? jobs.filter((job) => job.departmentId === departmentFilter)
+    : jobs;
+  
   // Sort jobs by date (upcoming first)
-  const sortedJobs = [...jobs].sort((a, b) => {
+  const sortedJobs = [...filteredJobs].sort((a, b) => {
     const dateA = new Date(a.startTime).getTime();
     const dateB = new Date(b.startTime).getTime();
     return dateA - dateB;
@@ -64,16 +88,36 @@ export default function RosterView() {
         {/* Header */}
         <Card data-testid="card-roster-header">
           <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-lg">
-                {contact.firstName?.[0] || '?'}{contact.lastName?.[0] || ''}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-lg">
+                  {contact.firstName?.[0] || '?'}{contact.lastName?.[0] || ''}
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold" data-testid="text-contact-name">
+                    {contact.firstName} {contact.lastName}
+                  </h1>
+                  <p className="text-muted-foreground">Your Job Schedule</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-semibold" data-testid="text-contact-name">
-                  {contact.firstName} {contact.lastName}
-                </h1>
-                <p className="text-muted-foreground">Your Job Schedule</p>
-              </div>
+              {availableDepartments.length > 0 && (
+                <Select
+                  value={departmentFilter || "all"}
+                  onValueChange={(value) => setDepartmentFilter(value === "all" ? null : value)}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All departments" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All departments</SelectItem>
+                    {availableDepartments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </CardHeader>
         </Card>
@@ -103,13 +147,17 @@ export default function RosterView() {
         )}
 
         {/* Empty State */}
-        {jobs.length === 0 && (
+        {sortedJobs.length === 0 && (
           <Card>
             <CardContent className="p-12 text-center">
               <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">No Jobs Assigned</h3>
+              <h3 className="text-lg font-medium mb-2">
+                {departmentFilter ? "No Jobs in Selected Department" : "No Jobs Assigned"}
+              </h3>
               <p className="text-muted-foreground">
-                You don't have any jobs assigned at the moment. Check back later!
+                {departmentFilter 
+                  ? "You don't have any jobs assigned in this department at the moment."
+                  : "You don't have any jobs assigned at the moment. Check back later!"}
               </p>
             </CardContent>
           </Card>

@@ -9,7 +9,8 @@ import {
   availability, subscriptions,
   passwordResetTokens, subscriptionPlans, smsBundles, creditGrants, creditTransactions,
   adminUsers, resellers, resellerTransactions, resellerPayouts, feedback, platformSettings,
-  jobSkillRequirements, deviceTokens, pushNotificationDeliveries,
+  jobSkillRequirements, deviceTokens, pushNotificationDeliveries, departments, contactDepartments, messageLogs,
+  cancellationLogs, jobInvitationPool,
   type Organization, type InsertOrganization,
   type User, type InsertUser,
   type Contact, type InsertContact,
@@ -33,6 +34,11 @@ import {
   type JobSkillRequirement, type InsertJobSkillRequirement,
   type DeviceToken, type InsertDeviceToken,
   type PushNotificationDelivery, type InsertPushNotificationDelivery,
+  type Department, type InsertDepartment,
+  type ContactDepartment, type InsertContactDepartment,
+  type CancellationLog, type InsertCancellationLog,
+  type JobInvitationPool, type InsertJobInvitationPool,
+  type MessageLog, type InsertMessageLog,
 } from "@shared/schema";
 import type { IStorage } from "./storage";
 
@@ -128,7 +134,8 @@ export class DbStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const result = await this.db.select().from(users).where(eq(users.email, email));
+    // Case-insensitive email lookup
+    const result = await this.db.select().from(users).where(sql`LOWER(${users.email}) = LOWER(${email})`);
     return result[0];
   }
 
@@ -297,8 +304,9 @@ export class DbStorage implements IStorage {
   }
 
   async getContactByEmail(email: string, organizationId?: string): Promise<Contact | undefined> {
+    // Case-insensitive email lookup
     const conditions = [
-      eq(contacts.email, email),
+      sql`LOWER(${contacts.email}) = LOWER(${email})`,
       eq(contacts.hasLogin, true), // Only return contacts with login enabled
     ];
     
@@ -341,15 +349,255 @@ export class DbStorage implements IStorage {
     await this.db.delete(contacts).where(eq(contacts.id, id));
   }
 
+  // Department methods
+  async createDepartment(organizationId: string, data: InsertDepartment): Promise<Department> {
+    const result = await this.db.insert(departments).values({ ...data, organizationId }).returning();
+    return result[0];
+  }
+
+  async getDepartmentsByOrganization(organizationId: string): Promise<Department[]> {
+    return await this.db
+      .select()
+      .from(departments)
+      .where(eq(departments.organizationId, organizationId));
+  }
+
+  async getDepartmentById(id: string, organizationId: string): Promise<Department | undefined> {
+    const result = await this.db
+      .select()
+      .from(departments)
+      .where(and(eq(departments.id, id), eq(departments.organizationId, organizationId)));
+    return result[0];
+  }
+
+  async updateDepartment(id: string, organizationId: string, data: Partial<InsertDepartment>): Promise<Department> {
+    const result = await this.db
+      .update(departments)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(departments.id, id), eq(departments.organizationId, organizationId)))
+      .returning();
+    return result[0];
+  }
+
+  async deleteDepartment(id: string, organizationId: string): Promise<void> {
+    await this.db
+      .delete(departments)
+      .where(and(eq(departments.id, id), eq(departments.organizationId, organizationId)));
+  }
+
+  async createCancellationLog(log: InsertCancellationLog): Promise<CancellationLog> {
+    const result = await this.db.insert(cancellationLogs).values(log).returning();
+    return result[0];
+  }
+
+  async getRecentCancellations(organizationId: string, limit = 5): Promise<Array<CancellationLog & { jobName: string; contactName: string }>> {
+    const rows = await this.db
+      .select({
+        id: cancellationLogs.id,
+        jobId: cancellationLogs.jobId,
+        contactId: cancellationLogs.contactId,
+        cancelledBy: cancellationLogs.cancelledBy,
+        reason: cancellationLogs.reason,
+        createdAt: cancellationLogs.createdAt,
+        jobName: jobs.name,
+        contactName: sql<string>`concat(${contacts.firstName}, ' ', ${contacts.lastName})`,
+      })
+      .from(cancellationLogs)
+      .innerJoin(jobs, eq(jobs.id, cancellationLogs.jobId))
+      .innerJoin(contacts, eq(contacts.id, cancellationLogs.contactId))
+      .where(eq(jobs.organizationId, organizationId))
+      .orderBy(desc(cancellationLogs.createdAt))
+      .limit(limit);
+    return rows as any;
+  }
+
+  async upsertInvitationPool(jobId: string, campaignId: string | null, contactsList: Array<{ contactId: string }>): Promise<void> {
+    if (!contactsList.length) return;
+    for (const entry of contactsList) {
+      await this.db
+        .insert(jobInvitationPool)
+        .values({
+          jobId,
+          campaignId,
+          contactId: entry.contactId,
+        })
+        .onConflictDoNothing({ target: [jobInvitationPool.jobId, jobInvitationPool.contactId] });
+    }
+  }
+
+  async markInvitationAsInvited(jobId: string, contactId: string): Promise<void> {
+    await this.db
+      .update(jobInvitationPool)
+      .set({ invited: true })
+      .where(and(eq(jobInvitationPool.jobId, jobId), eq(jobInvitationPool.contactId, contactId)));
+  }
+
+  async getUninvitedPool(jobId: string): Promise<JobInvitationPool[]> {
+    return await this.db
+      .select()
+      .from(jobInvitationPool)
+      .where(and(eq(jobInvitationPool.jobId, jobId), eq(jobInvitationPool.invited, false)))
+      .orderBy(jobInvitationPool.createdAt);
+  }
+
+  // Contact-Department association methods
+  async assignContactToDepartment(contactId: string, departmentId: string, organizationId: string): Promise<ContactDepartment> {
+    // Verify contact and department belong to same organization
+    const contact = await this.getContact(contactId, organizationId);
+    if (!contact) {
+      throw new Error("Contact not found");
+    }
+    const department = await this.getDepartmentById(departmentId, organizationId);
+    if (!department) {
+      throw new Error("Department not found");
+    }
+    
+    const result = await this.db
+      .insert(contactDepartments)
+      .values({ contactId, departmentId })
+      .onConflictDoNothing()
+      .returning();
+    
+    if (result.length === 0) {
+      // Already exists, fetch it
+      const existing = await this.db
+        .select()
+        .from(contactDepartments)
+        .where(and(eq(contactDepartments.contactId, contactId), eq(contactDepartments.departmentId, departmentId)));
+      return existing[0];
+    }
+    return result[0];
+  }
+
+  async removeContactFromDepartment(contactId: string, departmentId: string, organizationId: string): Promise<void> {
+    // Verify contact and department belong to same organization
+    const contact = await this.getContact(contactId, organizationId);
+    if (!contact) {
+      throw new Error("Contact not found");
+    }
+    const department = await this.getDepartmentById(departmentId, organizationId);
+    if (!department) {
+      throw new Error("Department not found");
+    }
+    
+    await this.db
+      .delete(contactDepartments)
+      .where(and(eq(contactDepartments.contactId, contactId), eq(contactDepartments.departmentId, departmentId)));
+  }
+
+  async getContactsByDepartment(departmentId: string, organizationId: string): Promise<Contact[]> {
+    // Verify department belongs to organization
+    const department = await this.getDepartmentById(departmentId, organizationId);
+    if (!department) {
+      return [];
+    }
+    
+    return await this.db
+      .select({
+        id: contacts.id,
+        organizationId: contacts.organizationId,
+        userId: contacts.userId,
+        firstName: contacts.firstName,
+        lastName: contacts.lastName,
+        countryCode: contacts.countryCode,
+        phone: contacts.phone,
+        email: contacts.email,
+        address: contacts.address,
+        profilePicture: contacts.profilePicture,
+        notes: contacts.notes,
+        skills: contacts.skills,
+        qualifications: contacts.qualifications,
+        blackoutPeriods: contacts.blackoutPeriods,
+        isOptedOut: contacts.isOptedOut,
+        quietHoursStart: contacts.quietHoursStart,
+        quietHoursEnd: contacts.quietHoursEnd,
+        tags: contacts.tags,
+        status: contacts.status,
+        rosterToken: contacts.rosterToken,
+        password: contacts.password,
+        hasLogin: contacts.hasLogin,
+        emailVerified: contacts.emailVerified,
+        lastLoginAt: contacts.lastLoginAt,
+        createdAt: contacts.createdAt,
+        updatedAt: contacts.updatedAt,
+      })
+      .from(contacts)
+      .innerJoin(contactDepartments, eq(contacts.id, contactDepartments.contactId))
+      .where(and(eq(contactDepartments.departmentId, departmentId), eq(contacts.organizationId, organizationId)));
+  }
+
+  async getDepartmentsByContact(contactId: string, organizationId: string): Promise<Department[]> {
+    // Verify contact belongs to organization
+    const contact = await this.getContact(contactId, organizationId);
+    if (!contact) {
+      return [];
+    }
+    
+    return await this.db
+      .select({
+        id: departments.id,
+        organizationId: departments.organizationId,
+        name: departments.name,
+        description: departments.description,
+        createdAt: departments.createdAt,
+        updatedAt: departments.updatedAt,
+      })
+      .from(departments)
+      .innerJoin(contactDepartments, eq(departments.id, contactDepartments.departmentId))
+      .where(and(eq(contactDepartments.contactId, contactId), eq(departments.organizationId, organizationId)));
+  }
+
+  // Job-Department methods
+  async getJobsByDepartment(departmentId: string, organizationId: string): Promise<Job[]> {
+    // Verify department belongs to organization
+    const department = await this.getDepartmentById(departmentId, organizationId);
+    if (!department) {
+      return [];
+    }
+    
+    return await this.db
+      .select()
+      .from(jobs)
+      .where(and(eq(jobs.departmentId, departmentId), eq(jobs.organizationId, organizationId)));
+  }
+
+  async updateJobDepartment(jobId: string, departmentId: string | null, organizationId: string): Promise<Job> {
+    // Verify job belongs to organization
+    const job = await this.getJob(jobId);
+    if (!job || job.organizationId !== organizationId) {
+      throw new Error("Job not found");
+    }
+    
+    // If departmentId is provided, verify it belongs to organization
+    if (departmentId !== null) {
+      const department = await this.getDepartmentById(departmentId, organizationId);
+      if (!department) {
+        throw new Error("Department not found");
+      }
+    }
+    
+    const result = await this.db
+      .update(jobs)
+      .set({ departmentId, updatedAt: new Date() })
+      .where(and(eq(jobs.id, jobId), eq(jobs.organizationId, organizationId)))
+      .returning();
+    return result[0];
+  }
+
   async getJobs(organizationId: string): Promise<Job[]> {
-    return await this.db.select().from(jobs).where(eq(jobs.organizationId, organizationId));
+    const result = await this.db.select().from(jobs).where(eq(jobs.organizationId, organizationId));
+    return result as Job[];
   }
 
 
   async getJob(id: string): Promise<Job | undefined> {
-    const result = await this.db.select().from(jobs).where(eq(jobs.id, id));
-    return result[0];
+    const result = await this.db
+      .select()
+      .from(jobs)
+      .where(eq(jobs.id, id));
+    return result[0] as Job | undefined;
   }
+
 
   async createJob(organizationId: string, userId: string, job: InsertJob): Promise<Job> {
     const result = await this.db.insert(jobs).values({ ...job, organizationId, userId }).returning();
@@ -569,7 +817,7 @@ export class DbStorage implements IStorage {
 
   async createAvailability(organizationId: string, avail: InsertAvailability): Promise<Availability> {
     const job = await this.getJob(avail.jobId);
-    if (!job) {
+    if (!job || job.organizationId !== organizationId) {
       throw new Error("Job not found for organization");
     }
 
@@ -1214,6 +1462,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async getPushNotificationDeliveriesByContactAndJob(contactId: string, jobId: string): Promise<PushNotificationDelivery[]> {
+    return await this.db
+      .select()
+      .from(pushNotificationDeliveries)
+      .where(
+        and(
+          eq(pushNotificationDeliveries.contactId, contactId),
+          eq(pushNotificationDeliveries.jobId, jobId)
+        )
+      )
+      .orderBy(desc(pushNotificationDeliveries.createdAt));
+  }
+
   async getUndeliveredNotifications(olderThanSeconds: number): Promise<PushNotificationDelivery[]> {
     const cutoffTime = new Date(Date.now() - olderThanSeconds * 1000);
     return await this.db
@@ -1225,5 +1486,72 @@ export class DbStorage implements IStorage {
           lt(pushNotificationDeliveries.createdAt, cutoffTime)
         )
       );
+  }
+
+  async getAndLockPendingFallbacks(): Promise<PushNotificationDelivery[]> {
+    // Get deliveries where fallbackDueAt has passed and not yet processed
+    const now = new Date();
+    
+    // First, get the pending fallbacks
+    const pending = await this.db
+      .select()
+      .from(pushNotificationDeliveries)
+      .where(
+        and(
+          eq(pushNotificationDeliveries.status, "sent"),
+          eq(pushNotificationDeliveries.fallbackProcessed, false),
+          lt(pushNotificationDeliveries.fallbackDueAt, now)
+        )
+      );
+    
+    if (pending.length === 0) {
+      return [];
+    }
+    
+    // Atomically mark them as processing to prevent race conditions
+    const pendingIds = pending.map(p => p.id);
+    await this.db
+      .update(pushNotificationDeliveries)
+      .set({ fallbackProcessed: true })
+      .where(
+        and(
+          inArray(pushNotificationDeliveries.id, pendingIds),
+          eq(pushNotificationDeliveries.fallbackProcessed, false) // Double-check to prevent race
+        )
+      );
+    
+    return pending;
+  }
+
+  // Message Log methods
+  async createMessageLog(log: InsertMessageLog): Promise<MessageLog> {
+    const result = await this.db.insert(messageLogs).values(log).returning();
+    return result[0];
+  }
+
+  async getMessageLogsForJob(jobId: string, organizationId: string): Promise<MessageLog[]> {
+    return await this.db
+      .select()
+      .from(messageLogs)
+      .where(
+        and(
+          eq(messageLogs.jobId, jobId),
+          eq(messageLogs.organizationId, organizationId)
+        )
+      )
+      .orderBy(desc(messageLogs.createdAt));
+  }
+
+  async getMessageLogsForContact(contactId: string, jobId: string): Promise<MessageLog[]> {
+    return await this.db
+      .select()
+      .from(messageLogs)
+      .where(
+        and(
+          eq(messageLogs.contactId, contactId),
+          eq(messageLogs.jobId, jobId)
+        )
+      )
+      .orderBy(desc(messageLogs.createdAt));
   }
 }

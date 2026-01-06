@@ -4,10 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { setContactId, getContactId } from "@/lib/contactApiClient";
-import { setUserId, getUserId } from "@/lib/userIdStorage";
-import { Capacitor } from "@capacitor/core";
-import { registerPushNotifications } from "@/lib/push-notifications";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -188,134 +184,21 @@ export default function AuthPage() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginFormData) => {
-      // Get API base URL for native apps
-      const getApiBaseUrl = () => {
-        if (Capacitor.isNativePlatform()) {
-          return "https://portal.heyteam.ai";
-      }
-        return "";
-      };
-      
-      const baseUrl = getApiBaseUrl();
-      
-      // Try mobile login first (works for both contacts and users in native apps)
-      // For native apps, always use mobile login endpoint
-      if (Capacitor.isNativePlatform()) {
-        try {
-          const loginUrl = `${baseUrl}/api/mobile/auth/login`;
-          const res = await fetch(loginUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(data),
-          });
-          
-          if (res.ok) {
-            const loginData = await res.json();
-            console.log("[Auth] Mobile login response:", loginData);
-      
-            // Store the appropriate ID based on type
-            if (loginData.type === "contact") {
-              const contactIdToStore = loginData.contactId || loginData.id;
-              if (contactIdToStore) {
-                console.log("[Auth] Storing contactId:", contactIdToStore);
-                setContactId(contactIdToStore);
-              } else {
-                console.error("[Auth] No contactId found in response:", loginData);
-              }
-            } else if (loginData.type === "user") {
-              const userIdToStore = loginData.userId || loginData.id;
-              if (userIdToStore) {
-                console.log("[Auth] Storing userId:", userIdToStore);
-                setUserId(userIdToStore);
-              } else {
-                console.error("[Auth] No userId found in response:", loginData);
-              }
-            }
-            
-            // Return the login data (works for both contacts and users)
-            return loginData;
-          } else {
-            const errorText = await res.text();
-            console.log("[Auth] Mobile login failed:", res.status, errorText);
-            throw new Error(errorText || "Mobile login failed");
-        }
-      } catch (error) {
-          console.error("[Auth] Mobile login error:", error);
-          throw error; // Re-throw to show error to user
-        }
-      }
-      
-      // For web, use regular login endpoint
-      const loginUrl = baseUrl ? `${baseUrl}/api/auth/login` : "/api/auth/login";
-      const res = await fetch(loginUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-      
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || "Login failed");
-      }
-      
+      const res = await apiRequest("POST", "/api/auth/login", data);
       return await res.json();
     },
     onSuccess: (data, variables) => {
       if (typeof window !== "undefined") {
         localStorage.setItem(LAST_EMAIL_KEY, variables.email);
       }
-      
-      console.log("[Auth] Login success, data:", data);
-      
       toast({ title: "Login successful" });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       
       // Redirect based on account type
       if (data.type === "contact") {
-        // Verify contactId is stored
-        const storedContactId = getContactId();
-        console.log("[Auth] Contact login - stored contactId:", storedContactId);
-        
-        if (!storedContactId) {
-          console.error("[Auth] ERROR: contactId was not stored! Data:", data);
-          toast({
-            title: "Login Error",
-            description: "Failed to save session. Please try again.",
-            variant: "destructive",
-          });
-          return;
-        }
-        
-        queryClient.invalidateQueries({ queryKey: ["/api/mobile/auth/me"] });
-        
-        // Small delay to ensure storage is complete before redirecting
-        // Push notifications will be registered in ContactApp after redirect
-        setTimeout(() => {
-          setLocation("/contact/dashboard");
-        }, 100);
-          } else {
-        // Verify userId is stored (for mobile users)
-        if (Capacitor.isNativePlatform()) {
-          const storedUserId = getUserId();
-          console.log("[Auth] User login - stored userId:", storedUserId);
-          
-          if (!storedUserId) {
-            console.error("[Auth] ERROR: userId was not stored! Data:", data);
-            toast({
-              title: "Login Error",
-              description: "Failed to save session. Please try again.",
-              variant: "destructive",
-            });
-            return;
-          }
-        }
-        
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-        // Small delay to ensure storage is complete and query can use the userId
-        setTimeout(() => {
-          setLocation("/jobs");
-        }, 100);
+        setLocation("/contact/dashboard");
+      } else {
+        setLocation("/jobs");
       }
     },
     onError: (error: any) => {
@@ -354,8 +237,8 @@ export default function AuthPage() {
     onSuccess: () => {
       toast({ title: "Registration successful" });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-        // Redirect new users straight to the jobs dashboard with a one-time tour flag
-        setLocation("/jobs?tour=signup");
+      // Redirect new users straight to the jobs dashboard with a one-time tour flag
+      setLocation("/jobs?tour=signup");
     },
     onError: (error: any) => {
       let errorMessage = "Could not create account";
@@ -622,7 +505,6 @@ export default function AuthPage() {
                               placeholder="your@email.com"
                               className="h-11"
                               data-testid="input-login-email"
-                              autoComplete="username"
                             />
                           </FormControl>
                           <FormMessage />
@@ -644,7 +526,6 @@ export default function AuthPage() {
                                 placeholder="Enter your password"
                                 className="h-11 pr-10"
                                 data-testid="input-login-password"
-                                autoComplete="current-password"
                               />
                             </FormControl>
                             <button

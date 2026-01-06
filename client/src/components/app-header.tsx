@@ -3,13 +3,10 @@ import { ThemeToggle } from "./theme-toggle";
 import { FeedbackDialog } from "./feedback-dialog";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { Users, Calendar, FileText, Briefcase, CreditCard, LogOut, Shield, Settings, Menu, MessageSquare, ChevronDown, User, MessageSquarePlus } from "lucide-react";
+import { Users, Calendar, FileText, Briefcase, CreditCard, LogOut, Shield, Settings, Menu, MessageSquare, ChevronDown, User, MessageSquarePlus, Building2 } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { removeUserId, getUserId, getUserQueryFn } from "@/lib/userIdStorage";
-import { removeContactId } from "@/lib/contactApiClient";
-import { Capacitor } from "@capacitor/core";
 import logoImage from "@assets/heyteam 1_1760877824955.png";
 import {
   Sheet,
@@ -33,6 +30,7 @@ const navItems = [
   { path: "/jobs", label: "Jobs", icon: Briefcase },
   { path: "/calendar", label: "Calendar", icon: Calendar },
   { path: "/contacts", label: "Contacts", icon: Users },
+  { path: "/departments", label: "Departments", icon: Building2 },
   { path: "/templates", label: "Templates", icon: FileText },
 ];
 
@@ -41,14 +39,8 @@ export function AppHeader() {
   const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const isMobileLayout = Capacitor.isNativePlatform();
   const { data: user } = useQuery({
     queryKey: ["/api/auth/me"],
-    queryFn: isMobileLayout ? getUserQueryFn : undefined, // Use mobile queryFn for native apps
-    retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const { data: organization } = useQuery({
@@ -58,23 +50,22 @@ export function AppHeader() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      // Just clear local storage - no API call needed
-      if (Capacitor.isNativePlatform()) {
-        removeUserId();
-        removeContactId();
-      }
-      return Promise.resolve();
+      return await apiRequest("POST", "/api/auth/logout");
     },
     onSuccess: () => {
       // Clear the user query cache, which will trigger App.tsx to redirect to /auth
       queryClient.setQueryData(["/api/auth/me"], null);
-      queryClient.clear();
-      
       toast({ title: "Logged out successfully" });
       // Small delay to ensure state updates before redirect
       setTimeout(() => {
         setLocation("/auth");
       }, 100);
+    },
+    onError: () => {
+      toast({
+        title: "Logout failed",
+        variant: "destructive",
+      });
     },
   });
 

@@ -42,6 +42,21 @@ const availableTokens = [
   { token: "{Notes}", description: "Job notes" },
 ];
 
+// Check if template is a job invitation template
+const isProtectedTemplate = (template: Template) => {
+  const normalized = template.name.toLowerCase().trim();
+  return normalized === "job invitation" || 
+         normalized === "job cancellation" || 
+         normalized === "job update";
+};
+
+const isJobInvitationTemplate = (template: Template) => {
+  return template.name && 
+    (template.name.toLowerCase().includes("invitation") || 
+     template.name.toLowerCase().includes("job invitation") ||
+     template.name.toLowerCase() === "job invitation");
+};
+
 export default function Templates() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -139,15 +154,17 @@ function TemplateCard({ template }: { template: Template }) {
               >
                 <Pencil className="h-4 w-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-destructive hover:text-destructive"
-                onClick={() => deleteMutation.mutate()}
-                data-testid={`button-delete-template-${template.id}`}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              {!isProtectedTemplate(template) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive hover:text-destructive"
+                  onClick={() => deleteMutation.mutate()}
+                  data-testid={`button-delete-template-${template.id}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
           <Badge variant="secondary" className="w-fit text-xs">{template.type}</Badge>
@@ -259,25 +276,39 @@ function TemplateForm({ template, onSuccess }: { template?: Template; onSuccess:
           <FormField
             control={form.control}
             name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-2">
-                  Template Name
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p>Give your template a descriptive name like "Job Invitation" or "Availability Request" so you can easily find it later</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g., Job Invitation" {...field} data-testid="input-template-name" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            render={({ field }) => {
+              const isProtected = template && isProtectedTemplate(template);
+              return (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    Template Name
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Give your template a descriptive name like "Job Invitation" or "Availability Request" so you can easily find it later</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="e.g., Job Invitation" 
+                      {...field} 
+                      data-testid="input-template-name"
+                      disabled={isProtected}
+                      className={isProtected ? "opacity-60 cursor-not-allowed" : ""}
+                    />
+                  </FormControl>
+                  {isProtected && (
+                    <FormDescription className="text-muted-foreground italic">
+                      The name of the {template?.name} template cannot be changed
+                    </FormDescription>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
           />
 
           <FormField

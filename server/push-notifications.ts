@@ -1,5 +1,6 @@
 import * as apn from "apn";
-import * as admin from "firebase-admin";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getMessaging, type Message } from "firebase-admin/messaging";
 import { readFileSync } from "fs";
 import { join, resolve } from "path";
 import { randomBytes } from "crypto";
@@ -19,7 +20,7 @@ function initializeAPNs(): apn.Provider | null {
   const keyId = process.env.APNS_KEY_ID;
   const teamId = process.env.APNS_TEAM_ID;
   const bundleId = process.env.APNS_BUNDLE_ID || "ai.heyteam.portal";
-  const production = true;
+  const production = process.env.APNS_PRODUCTION === "true";
 
   if (!keyPath || !keyId || !teamId) {
     console.warn("[PushNotifications] APNs not configured - missing environment variables");
@@ -32,7 +33,7 @@ function initializeAPNs(): apn.Provider | null {
       ? keyPath 
       : resolve(process.cwd(), keyPath);
     const key = readFileSync(resolvedPath, "utf8");
-    
+    console.log("APN key:",key);
     apnProvider = new apn.Provider({
       token: {
         key,
@@ -42,7 +43,7 @@ function initializeAPNs(): apn.Provider | null {
       production, // Set to true for production, false for sandbox
     });
 
-    console.log("[PushNotifications] APNs initialized successfully");
+    console.log("APN Provider:",apnProvider);
     return apnProvider;
   } catch (error) {
     console.error("[PushNotifications] Failed to initialize APNs:", error);
@@ -70,9 +71,12 @@ function initializeFCM(): boolean {
     if (serviceAccountPath) {
       // Initialize with service account file
       const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, "utf8"));
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
+      // Only initialize if not already initialized
+      if (getApps().length === 0) {
+        initializeApp({
+          credential: cert(serviceAccount),
       });
+      }
     } else if (fcmServerKey) {
       // For server key, we'll use it directly in HTTP requests
       // Firebase Admin SDK doesn't support server key directly
@@ -122,6 +126,7 @@ export async function sendPushNotification(
       const bundleId = process.env.APNS_BUNDLE_ID || "ai.heyteam.portal";
       const note = new apn.Notification();
 
+      // Set APS properties - these will be automatically wrapped in "aps" object
       note.alert = {
         title: notification.title,
         body: notification.body,
@@ -129,17 +134,48 @@ export async function sendPushNotification(
       note.topic = bundleId;
       note.sound = "default";
       note.badge = 1;
-      // Set category and threadId (using type assertion as TypeScript types may be incomplete)
-      (note as any).category = "JOB_INVITATION"; // For action buttons
-      (note as any).threadId = notification.data?.jobId || "default"; // Group notifications by job
+      // Set category only for job invitations (for action buttons)
+      const notificationType = notification.data?.type || "message";
+      if (notificationType === "job_invitation") {
+        note.category = "JOB_INVITATION"; // For action buttons
+      }
+      note.threadId = notification.data?.jobId || "default"; // Group notifications by job
+      
+      // Set custom payload fields - these will be at root level alongside "aps"
+      // The apn library automatically combines: { aps: {...}, ...payload }
       note.payload = {
-        ...notification.data,
+        event: "start",
+        "content-state": {},
+        timestamp: 0,
+        type: notificationType,
+        jobId: notification.data?.jobId || "",
+        action: notification.data?.action || (notificationType === "job_invitation" ? "view_invitations" : "view_messages"),
         notificationId,
-        actionType: "job_invitation",
+        actionType: notificationType,
+      } as any; // Use 'as any' to allow hyphenated key "content-state"
+      
+      // Log the complete payload structure that will be sent (matches working format)
+      const completePayload = {
+        aps: {
+          alert: {
+            title: notification.title,
+            body: notification.body,
+          },
+          sound: "default",
+          badge: 1,
+        },
+        event: "start",
+        "content-state": {},
+        timestamp: 0,
+        type: notificationType,
+        jobId: notification.data?.jobId || "",
+        action: notification.data?.action || (notificationType === "job_invitation" ? "view_invitations" : "view_messages"),
+        notificationId,
+        actionType: notificationType,
       };
-      console.log("[PushNotifications] APNs notification:", note);
+      console.log("APNs complete notification payload:", JSON.stringify(completePayload, null, 2));
       const result = await provider.send(note, token);
-      console.log("[PushNotifications] APNs result:", result);
+
       if (result.failed && result.failed.length > 0) {
         console.error("[PushNotifications] APNs send failed:", result.failed);
         // Check if token is invalid
@@ -158,40 +194,49 @@ export async function sendPushNotification(
       return { success: false, notificationId };
     } else if (platform === "android") {
       // Use Firebase Admin SDK if initialized, otherwise use HTTP API
-      if (admin.apps.length > 0) {
+      if (getApps().length > 0) {
         try {
-          const message: admin.messaging.Message = {
+          // Build data object - FCM requires all values to be strings and no undefined values
+          const dataPayload: Record<string, string> = {
+            ...Object.fromEntries(
+              Object.entries(notification.data || {}).map(([k, v]) => [k, String(v ?? "")])
+            ),
+            notificationId: String(notificationId),
+            actionType: String(notification.data?.type || "message"),
+          };
+          
+          // Only add category if it's a job invitation (don't include undefined)
+          if (notification.data?.type === "job_invitation") {
+            dataPayload.category = "JOB_INVITATION";
+          }
+
+          const message: Message = {
             notification: {
               title: notification.title,
               body: notification.body,
             },
-            data: {
-              ...Object.fromEntries(
-                Object.entries(notification.data || {}).map(([k, v]) => [k, String(v)])
-              ),
-              notificationId,
-              actionType: "job_invitation",
-            },
+            data: dataPayload,
             token,
             android: {
               priority: "high",
               notification: {
-                clickAction: "OPEN_INVITATIONS",
+                clickAction: notification.data?.type === "job_invitation" ? "OPEN_INVITATIONS" : "OPEN_MESSAGES",
                 sound: "default",
-                channelId: "job_invitations",
+                channelId: notification.data?.type === "job_invitation" ? "job_invitations" : "messages",
               },
             },
             apns: {
               payload: {
                 aps: {
-                  category: "JOB_INVITATION",
+                  category: notification.data?.type === "job_invitation" ? "JOB_INVITATION" : undefined,
                   threadId: notification.data?.jobId || "default",
                 },
               },
             },
           };
 
-          const response = await admin.messaging().send(message);
+          const messaging = getMessaging();
+          const response = await messaging.send(message);
           console.log("[PushNotifications] FCM notification sent successfully:", response, "notificationId:", notificationId);
           return { success: true, notificationId };
         } catch (error: any) {
@@ -223,9 +268,12 @@ export async function sendPushNotification(
               body: notification.body,
             },
             data: {
-              ...notification.data,
-              notificationId,
-              actionType: "job_invitation",
+              ...Object.fromEntries(
+                Object.entries(notification.data || {}).map(([k, v]) => [k, String(v ?? "")])
+              ),
+              notificationId: String(notificationId),
+              actionType: String(notification.data?.type || "message"),
+              ...(notification.data?.type === "job_invitation" ? { category: "JOB_INVITATION" } : {}),
             },
           }),
         });

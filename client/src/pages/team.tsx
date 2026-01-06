@@ -1,11 +1,9 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog,
@@ -25,16 +23,11 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Crown, Shield, User as UserIcon, Trash2, Pencil, LogOut, Mail, Phone } from "lucide-react";
+import { UserPlus, Crown, Shield, User as UserIcon, Trash2, Pencil } from "lucide-react";
 import { useState } from "react";
-import { removeUserId, getUserId } from "@/lib/userIdStorage";
-import { removeContactId } from "@/lib/contactApiClient";
-import { Capacitor } from "@capacitor/core";
 
 export default function TeamPage() {
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
-  const isMobileLayout = Capacitor.isNativePlatform();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteData, setInviteData] = useState({ firstName: "", lastName: "", email: "", teamRole: "member" });
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -151,87 +144,11 @@ export default function TeamPage() {
     );
   };
 
-  const getUserInitials = () => {
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
-    }
-    if (user?.username) {
-      return user.username.substring(0, 2).toUpperCase();
-    }
-    if (user?.email) {
-      return user.email.substring(0, 2).toUpperCase();
-    }
-    return "U";
-  };
-
-  const getUserDisplayName = () => {
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName} ${user.lastName}`;
-    }
-    return user?.username || user?.email || "User";
-  };
-
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      // Just clear local storage - no API call needed
-      removeUserId();
-      removeContactId();
-      return Promise.resolve();
-    },
-    onSuccess: () => {
-      queryClient.setQueryData(["/api/auth/me"], null);
-      queryClient.clear();
-      toast({ title: "Logged out successfully" });
-      setTimeout(() => {
-        setLocation("/auth");
-      }, 100);
-    },
-  });
-
   return (
-    <div className={`min-h-screen bg-background ${isMobileLayout ? "p-4" : "container mx-auto py-8 max-w-6xl"} space-y-4`}>
-      <div>
-        <h1 className={`${isMobileLayout ? "text-2xl" : "text-3xl"} font-bold`} data-testid="text-page-title">Settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your account and team
-        </p>
-      </div>
-
-      {/* Profile Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>Your account information</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarFallback className="text-lg bg-primary text-primary-foreground">
-                {getUserInitials()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold">{getUserDisplayName()}</h3>
-              {user?.email && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                  <Mail className="h-4 w-4" />
-                  <span>{user.email}</span>
-                </div>
-              )}
-              {organization?.name && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                  <span>{organization.name}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Team Management Section */}
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto py-8 max-w-6xl">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className={`${isMobileLayout ? "text-xl" : "text-2xl"} font-bold`}>Team Management</h2>
+          <h1 className="text-3xl font-bold" data-testid="text-page-title">Team Management</h1>
           <p className="text-muted-foreground mt-1" data-testid="text-organization-name">
             {organization?.name}
           </p>
@@ -502,21 +419,6 @@ export default function TeamPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Logout Section */}
-      <Card>
-        <CardContent className="pt-6">
-          <Button
-            variant="destructive"
-            className="w-full"
-            onClick={() => logoutMutation.mutate()}
-            disabled={logoutMutation.isPending}
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            {logoutMutation.isPending ? "Logging out..." : "Logout"}
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }

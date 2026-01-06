@@ -22,6 +22,11 @@ import {
   type JobSkillRequirement, type InsertJobSkillRequirement,
   type DeviceToken, type InsertDeviceToken,
   type PushNotificationDelivery, type InsertPushNotificationDelivery,
+  type Department, type InsertDepartment,
+  type ContactDepartment, type InsertContactDepartment,
+  type MessageLog, type InsertMessageLog,
+  type CancellationLog, type InsertCancellationLog,
+  type JobInvitationPool, type InsertJobInvitationPool,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -68,6 +73,32 @@ export interface IStorage {
   updateContact(id: string, updates: Partial<InsertContact>): Promise<Contact>;
   updateContactPassword(contactId: string, password: string): Promise<Contact>;
   deleteContact(id: string): Promise<void>;
+
+  // Department methods
+  createDepartment(organizationId: string, data: InsertDepartment): Promise<Department>;
+  getDepartmentsByOrganization(organizationId: string): Promise<Department[]>;
+  getDepartmentById(id: string, organizationId: string): Promise<Department | undefined>;
+  updateDepartment(id: string, organizationId: string, data: Partial<InsertDepartment>): Promise<Department>;
+  deleteDepartment(id: string, organizationId: string): Promise<void>;
+  
+  // Contact-Department association methods
+  assignContactToDepartment(contactId: string, departmentId: string, organizationId: string): Promise<ContactDepartment>;
+  removeContactFromDepartment(contactId: string, departmentId: string, organizationId: string): Promise<void>;
+  getContactsByDepartment(departmentId: string, organizationId: string): Promise<Contact[]>;
+  getDepartmentsByContact(contactId: string, organizationId: string): Promise<Department[]>;
+  
+  // Job-Department methods
+  getJobsByDepartment(departmentId: string, organizationId: string): Promise<Job[]>;
+  updateJobDepartment(jobId: string, departmentId: string | null, organizationId: string): Promise<Job>;
+
+  // Cancellation logs
+  createCancellationLog(log: InsertCancellationLog): Promise<CancellationLog>;
+  getRecentCancellations(organizationId: string, limit?: number): Promise<Array<CancellationLog & { jobName: string; contactName: string }>>;
+
+  // Invitation pool
+  upsertInvitationPool(jobId: string, campaignId: string | null, contacts: Array<{ contactId: string }>): Promise<void>;
+  markInvitationAsInvited(jobId: string, contactId: string): Promise<void>;
+  getUninvitedPool(jobId: string): Promise<JobInvitationPool[]>;
 
   getJobs(organizationId: string): Promise<Job[]>;
   getJob(id: string, organizationId: string): Promise<Job | undefined>;
@@ -185,7 +216,14 @@ export interface IStorage {
   createPushNotificationDelivery(delivery: InsertPushNotificationDelivery): Promise<PushNotificationDelivery>;
   updatePushNotificationDelivery(id: string, updates: Partial<InsertPushNotificationDelivery>): Promise<PushNotificationDelivery>;
   getPushNotificationDeliveryByNotificationId(notificationId: string): Promise<PushNotificationDelivery | undefined>;
+  getPushNotificationDeliveriesByContactAndJob(contactId: string, jobId: string): Promise<PushNotificationDelivery[]>;
   getUndeliveredNotifications(olderThanSeconds: number): Promise<PushNotificationDelivery[]>;
+  getAndLockPendingFallbacks(): Promise<PushNotificationDelivery[]>;
+  
+  // Message Log methods
+  createMessageLog(log: InsertMessageLog): Promise<MessageLog>;
+  getMessageLogsForJob(jobId: string, organizationId: string): Promise<MessageLog[]>;
+  getMessageLogsForContact(contactId: string, jobId: string): Promise<MessageLog[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -527,23 +565,75 @@ export class MemStorage implements IStorage {
     this.contacts.delete(id);
   }
 
-  async getJobs(userId: string): Promise<Job[]> {
-    return Array.from(this.jobs.values()).filter((j) => j.userId === userId);
+  // Department methods (stub implementations for MemStorage)
+  async createDepartment(organizationId: string, data: InsertDepartment): Promise<Department> {
+    throw new Error("Department methods not implemented in MemStorage");
   }
 
-  async getJob(id: string): Promise<Job | undefined> {
-    return this.jobs.get(id);
+  async getDepartmentsByOrganization(organizationId: string): Promise<Department[]> {
+    throw new Error("Department methods not implemented in MemStorage");
   }
 
-  async createJob(userId: string, insertJob: InsertJob): Promise<Job> {
+  async getDepartmentById(id: string, organizationId: string): Promise<Department | undefined> {
+    throw new Error("Department methods not implemented in MemStorage");
+  }
+
+  async updateDepartment(id: string, organizationId: string, data: Partial<InsertDepartment>): Promise<Department> {
+    throw new Error("Department methods not implemented in MemStorage");
+  }
+
+  async deleteDepartment(id: string, organizationId: string): Promise<void> {
+    throw new Error("Department methods not implemented in MemStorage");
+  }
+
+  async assignContactToDepartment(contactId: string, departmentId: string, organizationId: string): Promise<ContactDepartment> {
+    throw new Error("Department methods not implemented in MemStorage");
+  }
+
+  async removeContactFromDepartment(contactId: string, departmentId: string, organizationId: string): Promise<void> {
+    throw new Error("Department methods not implemented in MemStorage");
+  }
+
+  async getContactsByDepartment(departmentId: string, organizationId: string): Promise<Contact[]> {
+    throw new Error("Department methods not implemented in MemStorage");
+  }
+
+  async getDepartmentsByContact(contactId: string, organizationId: string): Promise<Department[]> {
+    throw new Error("Department methods not implemented in MemStorage");
+  }
+
+  async getJobsByDepartment(departmentId: string, organizationId: string): Promise<Job[]> {
+    throw new Error("Department methods not implemented in MemStorage");
+  }
+
+  async updateJobDepartment(jobId: string, departmentId: string | null, organizationId: string): Promise<Job> {
+    throw new Error("Department methods not implemented in MemStorage");
+  }
+
+  async getJobs(organizationId: string): Promise<Job[]> {
+    return Array.from(this.jobs.values()).filter((j) => j.organizationId === organizationId);
+  }
+
+  async getJob(id: string, organizationId: string): Promise<Job | undefined> {
+    const job = this.jobs.get(id);
+    return job && job.organizationId === organizationId ? job : undefined;
+  }
+
+  async createJob(organizationId: string, userId: string, insertJob: InsertJob): Promise<Job> {
     const id = randomUUID();
     const now = new Date();
     const job: Job = {
       ...insertJob,
       id,
+      organizationId,
       userId,
       notes: insertJob.notes ?? null,
       requiredHeadcount: insertJob.requiredHeadcount ?? null,
+      departmentId: insertJob.departmentId ?? null,
+      isRecurring: insertJob.isRecurring ?? false,
+      recurrencePattern: insertJob.recurrencePattern ?? null,
+      parentJobId: insertJob.parentJobId ?? null,
+      recurrenceSequence: insertJob.recurrenceSequence ?? null,
       createdAt: now,
       updatedAt: now,
     };

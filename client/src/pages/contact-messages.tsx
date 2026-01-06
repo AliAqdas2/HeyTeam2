@@ -3,9 +3,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Clock, Briefcase } from "lucide-react";
 import { format } from "date-fns";
-import { getContactQueryFn } from "@/lib/contactApiClient";
-import { Capacitor } from "@capacitor/core";
-import { cn } from "@/lib/utils";
 
 type Message = {
   id: string;
@@ -18,15 +15,8 @@ type Message = {
 };
 
 export default function ContactMessages() {
-  const isMobileLayout = Capacitor.isNativePlatform();
-  
   const { data: messages, isLoading } = useQuery<Message[]>({
     queryKey: ["/api/contact/messages"],
-    queryFn: getContactQueryFn,
-    retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: true,
-    staleTime: 1 * 60 * 1000, // 1 minute
   });
 
   if (isLoading) {
@@ -42,20 +32,11 @@ export default function ContactMessages() {
   }) : [];
 
   return (
-    <div className={cn("space-y-6", isMobileLayout && "space-y-3")}>
-      {!isMobileLayout && (
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold">Messages</h1>
         <p className="text-muted-foreground mt-1">View all messages sent to you about your jobs</p>
       </div>
-      )}
-      
-      {isMobileLayout && (
-        <div>
-          <h1 className="text-xl font-semibold">Messages</h1>
-          <p className="text-sm text-muted-foreground mt-1">View messages about your jobs</p>
-        </div>
-      )}
 
       {sortedMessages.length === 0 ? (
         <Card>

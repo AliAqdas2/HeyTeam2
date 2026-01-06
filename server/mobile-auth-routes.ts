@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
+import jwt from "jsonwebtoken";
 import { storage } from "./storage";
 import { insertUserSchema } from "@shared/schema";
 import { z } from "zod";
@@ -11,36 +12,94 @@ const creditService = new CreditService(storage);
 
 const router = Router();
 
-// Middleware to extract userId from header (for mobile apps)
-const getMobileUserId = (req: Request): string | null => {
-  // Check X-User-ID header first
-  const userId = req.headers['x-user-id'] as string;
-  if (userId) {
-    return userId;
-  }
+const JWT_SECRET = process.env.MOBILE_JWT_SECRET || process.env.SESSION_SECRET || "dev-mobile-jwt";
+const JWT_EXPIRES_IN = "7d";
+
+const signMobileToken = (payload: object) => jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+// Structured logging helper (avoid sensitive values)
+const logRequestInfo = (req: Request, label: string, extra?: Record<string, any>) => {
+  const safeHeaders = {
+    authorization: req.headers.authorization ? `${req.headers.authorization.slice(0, 16)}...` : undefined,
+    "x-access-token": req.headers["x-access-token"],
+    "x-user-id": req.headers["x-user-id"],
+    "x-contact-id": req.headers["x-contact-id"],
+  };
+  console.log(
+    `[Mobile][${label}]`,
+    JSON.stringify({
+      method: req.method,
+      path: req.path,
+      query: req.query,
+      bodyKeys: Object.keys(req.body || {}),
+      headers: safeHeaders,
+      ...extra,
+    }),
+  );
+};
+
+const getAuthToken = (req: Request): string | null => {
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith("Bearer ")) return auth.slice(7);
+  const headerToken = req.headers["x-access-token"] as string | undefined;
+  if (headerToken) return headerToken;
   return null;
 };
 
-// Middleware to require mobile auth (userId in header)
+// Middleware to require mobile auth via JWT
 const requireMobileAuth = async (req: Request, res: Response, next: any) => {
-  const userId = getMobileUserId(req);
-  if (!userId) {
-    return res.status(401).json({ message: "Not authenticated - missing X-User-ID header" });
+  try {
+    const token = getAuthToken(req);
+    if (!token) {
+      logRequestInfo(req, "AuthMissing");
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET) as any;
+    } catch (err) {
+      logRequestInfo(req, "AuthTokenInvalid", { error: (err as Error).message });
+      return res.status(401).json({ message: "Invalid token" });
+    }
+    if (!decoded?.type || !decoded?.id) {
+      logRequestInfo(req, "AuthTokenMalformed", { decoded });
+      return res.status(401).json({ message: "Invalid token" });
+    }
+
+    if (decoded.type === "user") {
+      const user = await storage.getUser(decoded.id);
+      if (!user) {
+        logRequestInfo(req, "AuthUserNotFound", { decoded });
+        return res.status(401).json({ message: "User not found" });
+      }
+      (req as any).user = user;
+      (req as any).userId = decoded.id;
+    } else if (decoded.type === "contact") {
+      const contact = await storage.getContactById(decoded.id);
+      if (!contact) {
+        logRequestInfo(req, "AuthContactNotFound", { decoded });
+        return res.status(401).json({ message: "Contact not found" });
+      }
+      (req as any).contact = contact;
+      (req as any).contactId = decoded.id;
+    } else {
+      logRequestInfo(req, "AuthTypeInvalid", { decoded });
+      return res.status(401).json({ message: "Invalid token type" });
+    }
+
+    logRequestInfo(req, "AuthSuccess", { decodedType: decoded.type, decodedId: decoded.id });
+    next();
+  } catch (err) {
+    logRequestInfo(req, "AuthError", { error: (err as Error).message });
+    return res.status(401).json({ message: "Not authenticated" });
   }
-  
-  const user = await storage.getUser(userId);
-  if (!user) {
-    return res.status(401).json({ message: "User not found" });
-  }
-  
-  (req as any).user = user;
-  (req as any).userId = userId;
-  next();
 };
 
 // Register
 router.post("/register", async (req: Request, res: Response) => {
   try {
+    logRequestInfo(req, "RegisterStart");
     const { username, firstName, lastName, email, password, countryCode, mobileNumber, referralCode } = req.body;
     
     // Validate input
@@ -96,7 +155,8 @@ router.post("/register", async (req: Request, res: Response) => {
 
     console.log(`[Mobile Register] User created: ${user.email}, ID: ${user.id}`);
 
-    // Return user data with userId (no session needed)
+    // Return user data with JWT (no session needed)
+    const token = signMobileToken({ type: "user", id: user.id });
     res.json({
       id: user.id,
       username: user.username,
@@ -107,7 +167,7 @@ router.post("/register", async (req: Request, res: Response) => {
       teamRole: user.teamRole,
       emailVerified: user.emailVerified,
       mobileVerified: user.mobileVerified,
-      userId: user.id, // For mobile apps - store this in preferences
+      token,
     });
   } catch (error: any) {
     console.error("Register error:", error);
@@ -121,14 +181,15 @@ router.post("/register", async (req: Request, res: Response) => {
 // Login
 router.post("/login", async (req: Request, res: Response) => {
   try {
+    logRequestInfo(req, "LoginStart");
     const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password required" });
     }
 
-    // First, try to find a user (manager/admin)
-    const user = await storage.getUserByEmail(email);
+    // First, try to find a user (manager/admin) - case insensitive
+    const user = await storage.getUserByEmail(email.toLowerCase().trim());
     if (user) {
       // Verify password
       const validPassword = await bcrypt.compare(password, user.password);
@@ -138,7 +199,7 @@ router.post("/login", async (req: Request, res: Response) => {
 
       console.log(`[Mobile Login] User logged in: ${user.email}, ID: ${user.id}`);
 
-      // Return user data with userId (no session needed for mobile)
+      const token = signMobileToken({ type: "user", id: user.id });
       return res.json({
         type: "user",
         id: user.id,
@@ -150,12 +211,12 @@ router.post("/login", async (req: Request, res: Response) => {
         teamRole: user.teamRole,
         emailVerified: user.emailVerified,
         mobileVerified: user.mobileVerified,
-        userId: user.id, // For mobile apps - store this in preferences
+        token,
       });
     }
 
-    // If not a user, try to find a contact with login enabled
-    const contact = await storage.getContactByEmail(email);
+    // If not a user, try to find a contact with login enabled - case insensitive
+    const contact = await storage.getContactByEmail(email.toLowerCase().trim());
     if (contact && contact.hasLogin) {
       // Check if contact has password set
       if (!contact.password) {
@@ -173,7 +234,7 @@ router.post("/login", async (req: Request, res: Response) => {
 
       console.log(`[Mobile Login] Contact logged in: ${contact.email}, ID: ${contact.id}`);
 
-      // Return contact data with contactId (no session needed for mobile)
+      const token = signMobileToken({ type: "contact", id: contact.id });
       return res.json({
         type: "contact",
         id: contact.id,
@@ -183,7 +244,7 @@ router.post("/login", async (req: Request, res: Response) => {
         organizationId: contact.organizationId,
         phone: contact.phone,
         countryCode: contact.countryCode,
-        contactId: contact.id, // For mobile apps - store this in preferences
+        token,
       });
     }
 
@@ -196,18 +257,14 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
-// Get current user or contact (requires X-User-ID or X-Contact-ID header)
-router.get("/me", async (req: Request, res: Response) => {
+// Get current user or contact (requires JWT)
+router.get("/me", requireMobileAuth, async (req: Request, res: Response) => {
   try {
-    const userId = req.headers['x-user-id'] as string;
-    const contactId = req.headers['x-contact-id'] as string;
-    console.log("UserID:",userId );
-        console.log("ContactID:",contactId );
-    if (userId) {
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(401).json({ message: "User not found" });
-      }
+    logRequestInfo(req, "MeStart");
+    const user = (req as any).user;
+    const contact = (req as any).contact;
+
+    if (user) {
       return res.json({
         type: "user",
         id: user.id,
@@ -222,11 +279,7 @@ router.get("/me", async (req: Request, res: Response) => {
       });
     }
 
-    if (contactId) {
-      const contact = await storage.getContactById(contactId);
-      if (!contact) {
-        return res.status(401).json({ message: "Contact not found" });
-      }
+    if (contact) {
       return res.json({
         type: "contact",
         id: contact.id,
@@ -239,7 +292,7 @@ router.get("/me", async (req: Request, res: Response) => {
       });
     }
 
-    return res.status(401).json({ message: "Not authenticated - missing X-User-ID or X-Contact-ID header" });
+    return res.status(401).json({ message: "Not authenticated" });
   } catch (error: any) {
     console.error("Get user/contact error:", error);
     res.status(500).json({ message: "Failed to get user/contact" });
@@ -247,19 +300,20 @@ router.get("/me", async (req: Request, res: Response) => {
 });
 
 // Logout (just returns success - client removes userId from storage)
-router.post("/logout", requireMobileAuth, async (req: Request, res: Response) => {
+router.post("/logout", requireMobileAuth, async (_req: Request, res: Response) => {
   res.json({ message: "Logged out successfully" });
 });
 
 // Password reset request
 router.post("/forgot-password", async (req: Request, res: Response) => {
   try {
+    logRequestInfo(req, "ForgotStart");
     const { email } = req.body;
     if (!email) {
       return res.status(400).json({ message: "Email required" });
     }
 
-    const user = await storage.getUserByEmail(email);
+    const user = await storage.getUserByEmail(email.toLowerCase().trim());
     if (!user) {
       // Don't reveal if user exists
       return res.json({ message: "If that email exists, a password reset link has been sent" });
@@ -280,6 +334,7 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
 // Password reset
 router.post("/reset-password", async (req: Request, res: Response) => {
   try {
+    logRequestInfo(req, "ResetStart");
     const { token, password } = req.body;
     if (!token || !password) {
       return res.status(400).json({ message: "Token and password required" });

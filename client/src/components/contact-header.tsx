@@ -4,10 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Calendar, Briefcase, MessageSquare, LogOut, Menu, ChevronDown, User, Bell } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
-import { contactApiRequest, getContactQueryFn, removeContactId } from "@/lib/contactApiClient";
-import { removeUserId } from "@/lib/userIdStorage";
-import { removeDeviceToken } from "@/lib/push-notifications";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import logoImage from "@assets/heyteam 1_1760877824955.png";
 import {
@@ -27,8 +24,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useState } from "react";
-import { Capacitor } from "@capacitor/core";
-import { cn } from "@/lib/utils";
 
 const contactNavItems = [
   { path: "/contact/dashboard", label: "Dashboard", icon: Briefcase },
@@ -42,37 +37,27 @@ export function ContactHeader() {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isMobileLayout = Capacitor.isNativePlatform();
-  
-  // On mobile, return null - ContactMobileHeader will be used instead
-  if (isMobileLayout) {
-    return null;
-  }
 
   const { data: contact } = useQuery({
-    queryKey: ["/api/mobile/auth/me"],
-    queryFn: getContactQueryFn,
-    retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryKey: ["/api/auth/me"],
   });
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      // For mobile apps, just clear local storage - no API call needed
-      removeContactId();
-      removeUserId();
-      await removeDeviceToken();
-      return Promise.resolve();
+      return await apiRequest("POST", "/api/auth/logout");
     },
     onSuccess: () => {
-      queryClient.setQueryData(["/api/mobile/auth/me"], null);
-      queryClient.clear();
+      queryClient.setQueryData(["/api/auth/me"], null);
       toast({ title: "Logged out successfully" });
       setTimeout(() => {
         setLocation("/auth");
       }, 100);
+    },
+    onError: () => {
+      toast({
+        title: "Logout failed",
+        variant: "destructive",
+      });
     },
   });
 

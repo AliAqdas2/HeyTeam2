@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "531322915976",
+    "project_id": "heyteam-aba70",
+    "storage_bucket": "heyteam-aba70.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:531322915976:android:744c11d45553c524e8233d",
+        "android_client_info": {
+          "package_name": "ai.heyteam.portal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC2oJ06Rq2BIH4N-58Q3UjqYy9559QipJw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

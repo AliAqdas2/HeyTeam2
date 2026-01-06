@@ -1,12 +1,10 @@
 import { Switch, Route, Redirect, useLocation } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, getQueryFn } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppHeader } from "@/components/app-header";
-import { MobileHeader } from "@/components/mobile-header";
-import { MobileTabBar } from "@/components/mobile-tab-bar";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import Dashboard from "@/pages/dashboard";
 import JobForm from "@/pages/job-form";
@@ -29,22 +27,13 @@ import AdminLogin from "@/pages/admin-login";
 import AdminChangePassword from "@/pages/admin-change-password";
 import { AdminHeader } from "@/components/admin-header";
 import { ContactHeader } from "@/components/contact-header";
-import { ContactMobileHeader } from "@/components/contact-mobile-header";
-import { ContactTabBar } from "@/components/contact-tab-bar";
 import Winner from "@/pages/winner";
 import ContactDashboard from "@/pages/contact-dashboard";
 import ContactJobs from "@/pages/contact-jobs";
 import ContactInvitations from "@/pages/contact-invitations";
 import ContactMessages from "@/pages/contact-messages";
 import ContactSchedule from "@/pages/contact-schedule";
-import ContactSettings from "@/pages/contact-settings";
-import { getContactId, removeContactId } from "@/lib/contactApiClient";
-import { getUserQueryFn, getUserId, removeUserId } from "@/lib/userIdStorage";
-import { Capacitor } from "@capacitor/core";
-import { cn } from "@/lib/utils";
-import { initializePushNotifications } from "@/lib/push-notifications";
-import { useEffect } from "react";
-import { useLocation } from "wouter";
+import Departments from "@/pages/departments";
 
 function UserRouter() {
   return (
@@ -61,6 +50,7 @@ function UserRouter() {
       <Route path="/jobs" component={Dashboard} />
       <Route path="/contacts" component={Contacts} />
       <Route path="/templates" component={Templates} />
+      <Route path="/departments" component={Departments} />
       <Route path="/calendar" component={Calendar} />
       <Route path="/billing" component={Billing} />
       <Route path="/messages" component={MessageHistory} />
@@ -76,49 +66,17 @@ function UserRouter() {
 
 function UserApp() {
   const [location] = useLocation();
-  const isMobileLayout = Capacitor.isNativePlatform();
-  const userId = isMobileLayout ? getUserId() : null; // Check for userId on mobile
-  
-  console.log("[UserApp] Rendering - isMobileLayout:", isMobileLayout, "userId:", userId);
-  
-  const { data: user, isLoading, error } = useQuery({
+  const { data: user, isLoading } = useQuery({
     queryKey: ["/api/auth/me"],
-    queryFn: isMobileLayout ? getUserQueryFn : undefined, // Use mobile queryFn for native apps
+    queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    enabled: isMobileLayout ? !!userId : true, // Only run query if we have userId on mobile, always on web
   });
-  
-  console.log("[UserApp] Query state - isLoading:", isLoading, "error:", error, "user:", user);
 
   const isPublicRoute =
     location === "/auth" ||
     location.startsWith("/reset-password") ||
     location === "/pricing" ||
     location.startsWith("/schedule/");
-
-  // For mobile apps, if no userId and not on public route, redirect to auth
-  if (isMobileLayout && !userId && !isPublicRoute) {
-    return <Redirect to="/auth" />;
-  }
-
-  // If error or unauthorized, clear userId and redirect to auth (mobile only)
-  // But only if we actually had a userId - don't clear if query failed because userId was missing
-  if (isMobileLayout && error && userId) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage === "UNAUTHORIZED" || errorMessage.includes("401")) {
-      console.log("[UserApp] 401 error with userId present, clearing and redirecting");
-      removeUserId();
-      queryClient.removeQueries({ queryKey: ["/api/auth/me"] });
-      if (!isPublicRoute) {
-        return <Redirect to="/auth" />;
-      }
-    }
-  }
 
   if (isLoading && !isPublicRoute) {
     return (
@@ -128,11 +86,7 @@ function UserApp() {
     );
   }
 
-  // If no user data after loading completes and not on public route, redirect to auth
-  if (!user && !isLoading && !isPublicRoute) {
-    if (isMobileLayout) {
-      removeUserId(); // Clear invalid userId
-    }
+  if (!user && !isPublicRoute) {
     return <Redirect to="/auth" />;
   }
 
@@ -141,41 +95,12 @@ function UserApp() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Mobile Header (native only) - Fixed at top */}
-      {!isPublicRoute && isMobileLayout && <MobileHeader />}
-      
-      {/* Desktop Header */}
-      {!isPublicRoute && !isMobileLayout && <AppHeader />}
-      
-      <main 
-        className={cn(
-          "flex-1 w-full",
-          isPublicRoute 
-            ? "" 
-            : isMobileLayout
-            ? "mobile-main-container"
-            : "mx-auto max-w-screen-2xl px-6 py-8"
-        )}
-      >
-        {isMobileLayout && !isPublicRoute ? (
-          <>
-            <div className="mobile-content-spacer" />
-            <div className="mobile-content-padding">
-              <UserRouter />
-            </div>
-            <div className="mobile-footer-spacer" />
-          </>
-        ) : (
-          <>
-            {!isPublicRoute && !isMobileLayout && <PageBreadcrumbs />}
-            <UserRouter />
-          </>
-        )}
+    <div className="min-h-screen bg-background">
+      {!isPublicRoute && <AppHeader />}
+      <main className={isPublicRoute ? "" : "mx-auto max-w-screen-2xl px-6 py-8"}>
+        {!isPublicRoute && <PageBreadcrumbs />}
+        <UserRouter />
       </main>
-      
-      {/* Mobile Tab Bar (native only) - Fixed at bottom */}
-      {!isPublicRoute && isMobileLayout && <MobileTabBar />}
     </div>
   );
 }
@@ -242,7 +167,6 @@ function ContactRouter() {
       <Route path="/contact/invitations" component={ContactInvitations} />
       <Route path="/contact/messages" component={ContactMessages} />
       <Route path="/contact/schedule" component={ContactSchedule} />
-      <Route path="/contact/settings" component={ContactSettings} />
       <Route path="/contact">
         {() => <Redirect to="/contact/dashboard" />}
       </Route>
@@ -252,140 +176,13 @@ function ContactRouter() {
 }
 
 function ContactApp() {
-  const [location, setLocation] = useLocation();
-  const contactId = getContactId();
-  const isMobileLayout = Capacitor.isNativePlatform();
-  const isPublicRoute = false; // Contact routes are always authenticated
-
-  // Initialize push notifications on mount for contacts
-  // SIMPLIFIED: Register immediately after login
-  useEffect(() => {
-    if (contactId && isMobileLayout) {
-      console.log("[ContactApp] ===== INITIALIZING PUSH NOTIFICATIONS =====");
-      console.log("[ContactApp] Contact ID:", contactId);
-      console.log("[ContactApp] Is Mobile:", isMobileLayout);
-      
-      // Small delay to ensure everything is loaded
-      const timer = setTimeout(() => {
-        initializePushNotifications().catch((error) => {
-          console.error("[ContactApp] Failed to initialize push notifications:", error);
-          // Show error to user
-          window.dispatchEvent(new CustomEvent("pushNotificationError", {
-            detail: { 
-              title: "Push Notification Error",
-              message: `Failed to register: ${error instanceof Error ? error.message : String(error)}`
-            }
-          }));
-        });
-      }, 500); // 500ms delay to ensure contact is fully loaded
-      
-      return () => clearTimeout(timer);
-    } else {
-      console.log("[ContactApp] Skipping push notification init - contactId:", contactId, "isMobileLayout:", isMobileLayout);
-    }
-  }, [contactId, isMobileLayout]);
-  
-  // Listen for push notification errors and show toast
-  useEffect(() => {
-    const handleError = (event: CustomEvent) => {
-      const { title, message } = event.detail;
-      console.error("[ContactApp] Push notification error:", title, message);
-      // Show alert for now (can be replaced with toast if available)
-      alert(`${title}\n\n${message}\n\nCheck console for more details.`);
-    };
-    
-    const handleSuccess = (event: CustomEvent) => {
-      const { message } = event.detail;
-      console.log("[ContactApp] Push notification success:", message);
-      // Can show success toast here if needed
-    };
-    
-    window.addEventListener("pushNotificationError", handleError as EventListener);
-    window.addEventListener("pushNotificationSuccess", handleSuccess as EventListener);
-    return () => {
-      window.removeEventListener("pushNotificationError", handleError as EventListener);
-      window.removeEventListener("pushNotificationSuccess", handleSuccess as EventListener);
-    };
-  }, []);
-
-  // Handle notification taps
-  useEffect(() => {
-    const handleNotificationTap = (event: CustomEvent) => {
-      const { type, action } = event.detail;
-      if (type === "job_invitation" && action === "view_invitations") {
-        setLocation("/contact/invitations");
-      }
-    };
-
-    window.addEventListener("pushNotificationTap", handleNotificationTap as EventListener);
-    return () => {
-      window.removeEventListener("pushNotificationTap", handleNotificationTap as EventListener);
-    };
-  }, [setLocation]);
-  
-  const { data: contact, isLoading, error } = useQuery({
-    queryKey: ["/api/mobile/auth/me"],
-    queryFn: async () => {
-      if (!contactId) {
-        removeContactId();
-        throw new Error("UNAUTHORIZED");
-      }
-      // Get API base URL for native apps
-      const getApiBaseUrl = () => {
-        if (Capacitor.isNativePlatform()) {
-          return "https://portal.heyteam.ai";
-        }
-        return "";
-      };
-      
-      const baseUrl = getApiBaseUrl();
-      const meUrl = `${baseUrl}/api/mobile/auth/me`;
-      
-      const response = await fetch(meUrl, {
-        headers: {
-          "X-Contact-ID": contactId,
-        },
-        credentials: "include",
-      });
-      if (response.status === 401) {
-        removeContactId();
-        throw new Error("UNAUTHORIZED");
-      }
-      if (!response.ok) {
-        throw new Error("Failed to fetch contact");
-      }
-      const data = await response.json();
-      if (data.type !== "contact") {
-        removeContactId();
-        throw new Error("UNAUTHORIZED");
-      }
-      return data;
-    },
+  const [location] = useLocation();
+  const { data: contact, isLoading } = useQuery({
+    queryKey: ["/api/auth/me"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
-    enabled: !!contactId, // Only run if we have contactId
-    refetchOnWindowFocus: false,
-    refetchOnMount: false, // Don't refetch on mount - use cached data
-    refetchOnReconnect: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes - data is fresh for 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   });
 
-  // If no contact ID, redirect to auth
-  if (!contactId) {
-    return <Redirect to="/auth" />;
-  }
-
-  // If error or unauthorized, clear and redirect to auth
-  if (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage === "UNAUTHORIZED" || errorMessage.includes("401")) {
-      removeContactId();
-      queryClient.removeQueries({ queryKey: ["/api/mobile/auth/me"] });
-      return <Redirect to="/auth" />;
-    }
-  }
-
-  // If loading, show loading screen (only show once, don't keep refetching)
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -394,92 +191,67 @@ function ContactApp() {
     );
   }
 
-  // If no contact data after loading completes, redirect to auth
-  if (!contact && !isLoading) {
-    removeContactId();
-    queryClient.removeQueries({ queryKey: ["/api/mobile/auth/me"] });
+  // Ensure user is a contact
+  if (contact && contact.type !== "contact") {
     return <Redirect to="/auth" />;
   }
 
+  if (!contact) {
+    return <Redirect to="/auth" />;
+  }
+
+  if (location === "/auth") {
+    return <Redirect to="/contact/dashboard" />;
+  }
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Mobile Header (native only) - Fixed at top */}
-      {!isPublicRoute && isMobileLayout && <ContactMobileHeader />}
-      
-      {/* Desktop Header */}
-      {!isPublicRoute && !isMobileLayout && <ContactHeader />}
-      
-      {/* Main Content */}
-      <main 
-        className={cn(
-          "flex-1 w-full",
-          isPublicRoute 
-            ? "" 
-            : isMobileLayout
-            ? "mobile-main-container"
-            : "mx-auto max-w-screen-2xl px-6 py-8"
-        )}
-      >
-        {isMobileLayout && !isPublicRoute ? (
-          <>
-            <div className="mobile-content-spacer" />
-            <div className="mobile-content-padding">
-              <ContactRouter />
-            </div>
-            <div className="mobile-footer-spacer" />
-          </>
-        ) : (
-          <ContactRouter />
-        )}
+    <div className="min-h-screen bg-background">
+      <ContactHeader />
+      <main className="mx-auto max-w-screen-2xl px-6 py-8">
+        <ContactRouter />
       </main>
-      
-      {/* Mobile Tab Bar (native only) - Fixed at bottom */}
-      {!isPublicRoute && isMobileLayout && <ContactTabBar />}
     </div>
   );
 }
 
 function AppContent() {
   const [location] = useLocation();
-  const isMobileLayout = Capacitor.isNativePlatform();
- 
-  // Public routes (including /auth) should use UserRouter
+  const { data: user, isLoading } = useQuery({
+    queryKey: ["/api/auth/me"],
+  });
+
+  // Public routes should use UserRouter
   const isPublicRoute =
     location === "/auth" ||
     location.startsWith("/reset-password") ||
     location === "/pricing" ||
     location.startsWith("/schedule/");
 
-  // Check if we're on a contact route (but not /auth)
-  const isContactRoute = location.startsWith("/contact") && location !== "/auth";
-
-  // On mobile, check for stored IDs to determine which app to show
-  if (isMobileLayout && isPublicRoute) {
-    // On public routes, check for stored IDs and redirect accordingly
-    const contactId = getContactId();
-    const userId = getUserId();
-    
-    if (contactId && !userId) {
-      // Has contactId but no userId, redirect to contact dashboard
-      return <Redirect to="/contact/dashboard" />;
-    } else if (userId && !contactId) {
-      // Has userId but no contactId, redirect to user dashboard
-      return <Redirect to="/jobs" />;
-    }
-    // If both or neither, show the public route (auth page)
-  }
-
-  // Early decision: If on contact route, use ContactApp
-  if (isContactRoute) {
-    return <ContactApp />;
-  }
-
-  // For public routes (including /auth), use UserApp
   if (isPublicRoute) {
     return <UserApp />;
   }
 
-  // For all other routes, use UserApp
+  // If location starts with /contact/, route to ContactApp
+  // This handles the case where contact logs in and redirects before user data is refetched
+  if (location.startsWith("/contact/")) {
+    return <ContactApp />;
+  }
+
+  // While loading, show loading screen
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  // Check if user is a contact or regular user
+  if (user?.type === "contact") {
+    return <ContactApp />;
+  }
+
+  // Regular user (manager/team member) or no user
   return <UserApp />;
 }
 

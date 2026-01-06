@@ -289,8 +289,11 @@ export default function Billing() {
                   <h3 className="text-2xl font-semibold" data-testid="text-current-plan">
                     {currentPlan.name}
                   </h3>
-                  <Badge variant={subscription.status === "active" ? "default" : "secondary"} data-testid="badge-subscription-status">
-                    {subscription.status}
+                  <Badge 
+                    variant={subscription.cancelAtPeriodEnd ? "destructive" : subscription.status === "active" ? "default" : "secondary"} 
+                    data-testid="badge-subscription-status"
+                  >
+                    {subscription.cancelAtPeriodEnd ? "Cancelling" : subscription.status}
                   </Badge>
                 </div>
                 <div className="text-lg text-muted-foreground mt-1">
@@ -300,7 +303,13 @@ export default function Billing() {
                 </div>
                 {subscription.currentPeriodEnd && (
                   <p className="text-sm text-muted-foreground mt-1">
-                    Renews on {format(new Date(subscription.currentPeriodEnd), "MMMM d, yyyy")}
+                    {subscription.cancelAtPeriodEnd ? (
+                      <span className="text-destructive">
+                        Cancels on {format(new Date(subscription.currentPeriodEnd), "MMMM d, yyyy")}
+                      </span>
+                    ) : (
+                      <>Renews on {format(new Date(subscription.currentPeriodEnd), "MMMM d, yyyy")}</>
+                    )}
                   </p>
                 )}
                 {currentPlan.targetAudience && (
@@ -330,7 +339,7 @@ export default function Billing() {
                   <CreditCard className="h-4 w-4 mr-2" />
                   {manageStripeMutation.isPending ? "Loading..." : "Manage in Stripe"}
                 </Button>
-                {subscription.status === "active" && (
+                {subscription.status === "active" && !subscription.cancelAtPeriodEnd && (
                   <Button 
                     variant="destructive" 
                     onClick={() => setCancellationDialogOpen(true)}

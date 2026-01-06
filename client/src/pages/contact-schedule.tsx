@@ -2,12 +2,10 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Building2 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek, addMonths, subMonths } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { getContactQueryFn } from "@/lib/contactApiClient";
-import { Capacitor } from "@capacitor/core";
-import { cn } from "@/lib/utils";
 
 type JobWithStatus = {
   id: string;
@@ -15,23 +13,28 @@ type JobWithStatus = {
   location: string;
   startTime: string;
   endTime: string;
+  departmentId?: string | null;
   availabilityStatus: string;
 };
 
 export default function ContactSchedule() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const isMobileLayout = Capacitor.isNativePlatform();
+  const [departmentFilter, setDepartmentFilter] = useState<string | null>(null);
 
   const { data: scheduleData, isLoading } = useQuery<{ upcoming: JobWithStatus[]; past: JobWithStatus[] }>({
     queryKey: ["/api/contact/schedule"],
-    queryFn: getContactQueryFn,
-    retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: true,
-    staleTime: 1 * 60 * 1000, // 1 minute
   });
 
-  const allJobs = [...(scheduleData?.upcoming || []), ...(scheduleData?.past || [])];
+  const { data: departments } = useQuery({
+    queryKey: ["/api/contact/departments"],
+    retry: false,
+  });
+
+  // Filter jobs by department if filter is selected
+  const allJobsUnfiltered = [...(scheduleData?.upcoming || []), ...(scheduleData?.past || [])];
+  const allJobs = departmentFilter 
+    ? allJobsUnfiltered.filter((job) => job.departmentId === departmentFilter)
+    : allJobsUnfiltered;
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -55,20 +58,31 @@ export default function ContactSchedule() {
   }
 
   return (
-    <div className={cn("space-y-6", isMobileLayout && "space-y-3")}>
-      {!isMobileLayout && (
-      <div>
-        <h1 className="text-3xl font-semibold">Schedule</h1>
-        <p className="text-muted-foreground mt-1">View your jobs on a calendar</p>
-      </div>
-      )}
-      
-      {isMobileLayout && (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Schedule</h1>
-          <p className="text-sm text-muted-foreground mt-1">View your jobs on a calendar</p>
+          <h1 className="text-3xl font-semibold">Schedule</h1>
+          <p className="text-muted-foreground mt-1">View your jobs on a calendar</p>
         </div>
-      )}
+        {departments && departments.length > 0 && (
+          <Select
+            value={departmentFilter || "all"}
+            onValueChange={(value) => setDepartmentFilter(value === "all" ? null : value)}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All departments" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All departments</SelectItem>
+              {departments.map((dept: any) => (
+                <SelectItem key={dept.id} value={dept.id}>
+                  {dept.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
       <Card>
         <CardContent className="p-6">
@@ -120,25 +134,34 @@ export default function ContactSchedule() {
                     {format(day, "d")}
                   </div>
                   <div className="space-y-1">
-                    {dayJobs.slice(0, 2).map((job) => (
-                      <div
-                        key={job.id}
-                        className="bg-primary/10 border-l-2 border-primary px-2 py-1 rounded-sm"
-                      >
-                        <div className="text-xs font-medium truncate">{job.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {format(new Date(job.startTime), "h:mm a")}
-                        </div>
-                        <Badge 
-                          variant={job.availabilityStatus === "confirmed" ? "default" : "secondary"}
-                          className="text-xs mt-1"
+                    {dayJobs.slice(0, 2).map((job) => {
+                      const department = departments?.find((d) => d.id === job.departmentId);
+                      return (
+                        <div
+                          key={job.id}
+                          className="bg-primary/10 border-l-2 border-primary px-2 py-1 rounded-sm"
                         >
-                          {job.availabilityStatus === "confirmed" ? "Confirmed" : 
-                           job.availabilityStatus === "declined" ? "Declined" : 
-                           job.availabilityStatus === "maybe" ? "Maybe" : "Pending"}
-                        </Badge>
-                      </div>
-                    ))}
+                          <div className="text-xs font-medium truncate">{job.name}</div>
+                          {department && (
+                            <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <Building2 className="h-3 w-3" />
+                              {department.name}
+                            </div>
+                          )}
+                          <div className="text-xs text-muted-foreground">
+                            {format(new Date(job.startTime), "h:mm a")}
+                          </div>
+                          <Badge 
+                            variant={job.availabilityStatus === "confirmed" ? "default" : "secondary"}
+                            className="text-xs mt-1"
+                          >
+                            {job.availabilityStatus === "confirmed" ? "Confirmed" : 
+                             job.availabilityStatus === "declined" ? "Declined" : 
+                             job.availabilityStatus === "maybe" ? "Maybe" : "Pending"}
+                          </Badge>
+                        </div>
+                      );
+                    })}
                     {dayJobs.length > 2 && (
                       <div className="text-xs text-muted-foreground px-2">
                         +{dayJobs.length - 2} more

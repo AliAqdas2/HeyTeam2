@@ -2,13 +2,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Clock, Check, X } from "lucide-react";
+import { Calendar, MapPin, Clock, Check, X, Building2 } from "lucide-react";
 import { format } from "date-fns";
-import { queryClient } from "@/lib/queryClient";
-import { contactApiRequest, getContactQueryFn } from "@/lib/contactApiClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Capacitor } from "@capacitor/core";
-import { cn } from "@/lib/utils";
 
 type Invitation = {
   id: string;
@@ -17,6 +14,7 @@ type Invitation = {
   startTime: string;
   endTime: string;
   notes?: string;
+  departmentId?: string | null;
   availabilityStatus: string;
   shiftPreference?: string;
   createdAt: string;
@@ -25,21 +23,18 @@ type Invitation = {
 
 export default function ContactInvitations() {
   const { toast } = useToast();
-  const isMobileLayout = Capacitor.isNativePlatform();
-  
   const { data, isLoading, refetch } = useQuery<{ invitations: Invitation[] }>({
     queryKey: ["/api/contact/invitations"],
-    queryFn: getContactQueryFn,
+  });
+
+  const { data: departments } = useQuery({
+    queryKey: ["/api/contact/departments"],
     retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: true,
-    staleTime: 1 * 60 * 1000, // 1 minute
   });
 
   const updateInvitationMutation = useMutation({
     mutationFn: async ({ availabilityId, status }: { availabilityId: string; status: string }) => {
-      const response = await contactApiRequest("PATCH", `/api/contact/availability/${availabilityId}`, { status });
-      return await response.json();
+      return await apiRequest("PATCH", `/api/contact/availability/${availabilityId}`, { status });
     },
     onSuccess: () => {
       toast({ title: "Response saved successfully" });
@@ -83,20 +78,11 @@ export default function ContactInvitations() {
   };
 
   return (
-    <div className={cn("space-y-6", isMobileLayout && "space-y-3")}>
-      {!isMobileLayout && (
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold">Job Invitations</h1>
         <p className="text-muted-foreground mt-1">Respond to job invitations by accepting, declining, or marking as maybe</p>
       </div>
-      )}
-      
-      {isMobileLayout && (
-        <div>
-          <h1 className="text-xl font-semibold">Job Invitations</h1>
-          <p className="text-sm text-muted-foreground mt-1">Respond to job invitations</p>
-        </div>
-      )}
 
       {invitations.length === 0 ? (
         <Card>
@@ -114,6 +100,7 @@ export default function ContactInvitations() {
             <InvitationCard
               key={invitation.id}
               invitation={invitation}
+              departments={departments}
               onResponse={handleResponse}
               isUpdating={updateInvitationMutation.isPending}
             />
@@ -126,10 +113,12 @@ export default function ContactInvitations() {
 
 function InvitationCard({
   invitation,
+  departments,
   onResponse,
   isUpdating,
 }: {
   invitation: Invitation;
+  departments?: Array<{ id: string; name: string }>;
   onResponse: (invitation: Invitation, status: "confirmed" | "declined" | "maybe") => void;
   isUpdating: boolean;
 }) {
@@ -137,6 +126,8 @@ function InvitationCard({
   const endTime = new Date(invitation.endTime);
   const formattedDate = format(startTime, "EEEE, MMMM d, yyyy");
   const formattedTime = `${format(startTime, "h:mm a")} - ${format(endTime, "h:mm a")}`;
+
+  const department = departments?.find((d) => d.id === invitation.departmentId);
 
   const getStatusBadge = () => {
     switch (invitation.availabilityStatus) {
@@ -160,7 +151,15 @@ function InvitationCard({
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2 flex-1">
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-semibold">{invitation.name}</h3>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold">{invitation.name}</h3>
+                  {department && (
+                    <Badge variant="outline" className="text-xs mt-1">
+                      <Building2 className="h-3 w-3 mr-1" />
+                      {department.name}
+                    </Badge>
+                  )}
+                </div>
                 {getStatusBadge()}
               </div>
 
@@ -190,7 +189,7 @@ function InvitationCard({
           </div>
 
           {!hasResponded && (
-            <div className="flex flex-col gap-2 pt-4 border-t">
+            <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
               <Button
                 onClick={() => onResponse(invitation, "confirmed")}
                 disabled={isUpdating}

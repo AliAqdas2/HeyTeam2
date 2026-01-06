@@ -91,6 +91,11 @@ router.post("/register", async (req: Request, res: Response) => {
         includeRosterLink: false,
       },
       {
+        name: "Job Update",
+        content: "Hi {FirstName}, {JobName} has been updated. New time: {FromDate} {FromTime} to {ToDate} {ToTime}. Location: {Location}. Please confirm if you're still available.",
+        includeRosterLink: false,
+      },
+      {
         name: "Job Reminder",
         content: "Reminder: {FirstName}, you're confirmed for {JobName} tomorrow at {Location}. Start time: {Time}. See you there!",
         includeRosterLink: true,
@@ -148,8 +153,8 @@ router.post("/login", async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Email and password required" });
     }
 
-    // First, try to find a user (manager/admin)
-    const user = await storage.getUserByEmail(email);
+    // First, try to find a user (manager/admin) - case insensitive
+    const user = await storage.getUserByEmail(email.toLowerCase().trim());
     if (user) {
       // Verify password
       const validPassword = await bcrypt.compare(password, user.password);
@@ -176,8 +181,8 @@ router.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    // If not a user, try to find a contact with login enabled
-    const contact = await storage.getContactByEmail(email);
+    // If not a user, try to find a contact with login enabled - case insensitive
+    const contact = await storage.getContactByEmail(email.toLowerCase().trim());
     if (contact) {
       // Check if contact has password set
       if (!contact.password) {
@@ -229,18 +234,12 @@ router.post("/logout", (req: Request, res: Response) => {
   });
 });
 
-// Mobile logout (no session, just acknowledge)
-router.post("/mobile/logout", (req: Request, res: Response) => {
-  // For mobile apps using X-User-ID or X-Contact-ID headers, 
-  // there's no server-side session to destroy
-  // Just acknowledge the logout
-  res.json({ message: "Logged out successfully" });
-});
-
 // Get current user or contact
 router.get("/me", async (req: Request, res: Response) => {
   try {
-
+    console.log("===== /me endpoint hit =====");
+    console.log("Incoming headers:", req.headers);
+    console.log("Session at start:", req.session);
 
     // Helper function to get user from session
     const getUserFromSession = async (session: any) => {
@@ -294,16 +293,18 @@ router.get("/me", async (req: Request, res: Response) => {
 
     // 2. Fallback for Capacitor (manual cookie)
     const rawCookie = req.headers.cookie;
-
+    console.log("[/me] Raw Cookie Header:", rawCookie);
 
     if (rawCookie) {
       const match = rawCookie.match(/connect\.sid=([^;]+)/);
 
       if (match) {
         const sid = match[1];
+        console.log("[/me] Extracted session ID:", sid);
 
         req.sessionID = sid;
 
+        console.log("[/me] Attempting manual session restore...");
 
         return req.sessionStore.get(sid, async (err, session) => {
           if (err) {
@@ -392,7 +393,7 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Email required" });
     }
 
-    const user = await storage.getUserByEmail(email);
+    const user = await storage.getUserByEmail(email.toLowerCase().trim());
     if (!user) {
       // Don't reveal if email exists
       return res.json({ message: "If the email exists, a reset link will be sent" });

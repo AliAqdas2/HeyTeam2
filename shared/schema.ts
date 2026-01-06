@@ -91,6 +91,11 @@ export const jobs = pgTable("jobs", {
   endTime: timestamp("end_time").notNull(),
   requiredHeadcount: integer("required_headcount"),
   notes: text("notes"),
+  departmentId: varchar("department_id").references(() => departments.id, { onDelete: 'set null' }),
+  isRecurring: boolean("is_recurring").notNull().default(false),
+  recurrencePattern: text("recurrence_pattern"), // JSON: {type: "daily"|"weekly"|"monthly", interval: number, daysOfWeek?: number[], endDate?: timestamp}
+  parentJobId: varchar("parent_job_id").references(() => jobs.id, { onDelete: 'cascade' }),
+  recurrenceSequence: integer("recurrence_sequence"), // Order in recurrence series
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -121,7 +126,7 @@ export const campaigns = pgTable("campaigns", {
   organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // Keep for audit trail and created_by
   jobId: varchar("job_id").notNull().references(() => jobs.id, { onDelete: 'cascade' }),
-  templateId: varchar("template_id").notNull().references(() => templates.id),
+  templateId: varchar("template_id").references(() => templates.id), // Nullable to support custom messages
   sentAt: timestamp("sent_at").notNull().defaultNow(),
 });
 
@@ -144,7 +149,7 @@ export const availability = pgTable("availability", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   jobId: varchar("job_id").notNull().references(() => jobs.id, { onDelete: 'cascade' }),
   contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: 'cascade' }),
-  status: text("status").notNull().default("no_reply"),
+  status: text("status").notNull().default("no_reply"), // no_reply, confirmed, declined, maybe, cancelled
   shiftPreference: text("shift_preference"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -224,6 +229,8 @@ export const subscriptions = pgTable("subscriptions", {
   currentPeriodStart: timestamp("current_period_start"),
   currentPeriodEnd: timestamp("current_period_end"),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false), // Set to true when user cancels
+  cancelAt: timestamp("cancel_at"), // When the subscription will be cancelled
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -291,6 +298,43 @@ export const deviceTokens = pgTable("device_tokens", {
   platform: text("platform").notNull(), // "ios" | "android"
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const cancellationLogs = pgTable("cancellation_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: varchar("job_id").notNull().references(() => jobs.id, { onDelete: 'cascade' }),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: 'cascade' }),
+  cancelledBy: varchar("cancelled_by").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const jobInvitationPool = pgTable("job_invitation_pool", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: varchar("job_id").notNull().references(() => jobs.id, { onDelete: 'cascade' }),
+  campaignId: varchar("campaign_id").references(() => campaigns.id, { onDelete: 'set null' }),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: 'cascade' }),
+  invited: boolean("invited").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  jobContactUnique: unique("job_contact_unique").on(table.jobId, table.contactId),
+}));
+
+export const departments = pgTable("departments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  description: text("description"),
+  address: text("address"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const contactDepartments = pgTable("contact_departments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: 'cascade' }),
+  departmentId: varchar("department_id").notNull().references(() => departments.id, { onDelete: 'cascade' }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({
@@ -509,16 +553,55 @@ export type Feedback = typeof feedback.$inferSelect;
 export type InsertDeviceToken = z.infer<typeof insertDeviceTokenSchema>;
 export type DeviceToken = typeof deviceTokens.$inferSelect;
 
+export const insertDepartmentSchema = createInsertSchema(departments).omit({
+  id: true,
+  organizationId: true, // Will be set automatically from user's organization
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  address: z.string().trim().optional().nullable(),
+});
+
+export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
+export type Department = typeof departments.$inferSelect;
+
+export const insertContactDepartmentSchema = createInsertSchema(contactDepartments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertContactDepartment = z.infer<typeof insertContactDepartmentSchema>;
+export type ContactDepartment = typeof contactDepartments.$inferSelect;
+
+export const insertCancellationLogSchema = createInsertSchema(cancellationLogs).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCancellationLog = z.infer<typeof insertCancellationLogSchema>;
+export type CancellationLog = typeof cancellationLogs.$inferSelect;
+
+export const insertJobInvitationPoolSchema = createInsertSchema(jobInvitationPool).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertJobInvitationPool = z.infer<typeof insertJobInvitationPoolSchema>;
+export type JobInvitationPool = typeof jobInvitationPool.$inferSelect;
+
 export const pushNotificationDeliveries = pgTable("push_notification_deliveries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: 'cascade' }),
   jobId: varchar("job_id").notNull().references(() => jobs.id, { onDelete: 'cascade' }),
   campaignId: varchar("campaign_id").references(() => campaigns.id, { onDelete: 'set null' }),
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: 'cascade' }),
+  templateId: varchar("template_id").references(() => templates.id, { onDelete: 'set null' }),
+  customMessage: text("custom_message"), // For broadcast with custom message
   deviceToken: text("device_token").notNull(),
   notificationId: text("notification_id").notNull().unique(), // Unique ID for this notification
   status: text("status").notNull().default("sent"), // "sent", "delivered", "failed", "sms_fallback"
   deliveredAt: timestamp("delivered_at"),
   smsFallbackSentAt: timestamp("sms_fallback_sent_at"),
+  fallbackDueAt: timestamp("fallback_due_at"), // When SMS fallback should trigger (e.g., now + 30s)
+  fallbackProcessed: boolean("fallback_processed").default(false), // Prevent duplicate fallback processing
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -529,3 +612,44 @@ export const insertPushNotificationDeliverySchema = createInsertSchema(pushNotif
 
 export type InsertPushNotificationDelivery = z.infer<typeof insertPushNotificationDeliverySchema>;
 export type PushNotificationDelivery = typeof pushNotificationDeliveries.$inferSelect;
+
+export const messageLogs = pgTable("message_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  jobId: varchar("job_id").notNull().references(() => jobs.id, { onDelete: 'cascade' }),
+  campaignId: varchar("campaign_id").references(() => campaigns.id, { onDelete: 'set null' }),
+  contactId: varchar("contact_id").notNull().references(() => contacts.id, { onDelete: 'cascade' }),
+  eventType: text("event_type").notNull(), // 'contact_prioritized', 'batch_created', 'push_attempted', 'push_sent', 'push_delivered', 'push_failed', 'sms_fallback_scheduled', 'sms_fallback_triggered', 'sms_attempted', 'sms_sent', 'sms_delivered', 'sms_failed', 'portal_message_created', 'response_received'
+  channel: text("channel").notNull(), // 'push', 'sms', 'portal'
+  status: text("status").notNull(), // 'success', 'failed', 'pending', 'delivered'
+  notificationId: text("notification_id"), // For push notifications
+  messageId: varchar("message_id").references(() => messages.id, { onDelete: 'set null' }), // For SMS messages
+  pushDeliveryId: varchar("push_delivery_id").references(() => pushNotificationDeliveries.id, { onDelete: 'set null' }),
+  responseStatus: text("response_status"), // 'accepted', 'declined', null
+  errorMessage: text("error_message"),
+  metadata: text("metadata"), // JSONB stored as text, will be parsed when needed
+  // Enhanced logging fields
+  priority: integer("priority"), // Contact priority score (1-100)
+  priorityReason: text("priority_reason"), // Why this priority was assigned
+  deliveryAttempt: integer("delivery_attempt").default(1), // Retry count
+  scheduledAt: timestamp("scheduled_at"), // When message was scheduled
+  sentAt: timestamp("sent_at"), // When actually sent
+  deliveredAt: timestamp("delivered_at"), // When confirmed delivered
+  failedAt: timestamp("failed_at"), // When failed (if applicable)
+  retryAt: timestamp("retry_at"), // When retry is scheduled
+  batchId: varchar("batch_id"), // Which batch this belonged to
+  batchPosition: integer("batch_position"), // Position in batch (1, 2, 3...)
+  twilioSid: text("twilio_sid"), // Twilio message SID
+  twilioStatus: text("twilio_status"), // Twilio status callback
+  costCredits: integer("cost_credits"), // Credits consumed
+  processingTimeMs: integer("processing_time_ms"), // Time taken to process
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertMessageLogSchema = createInsertSchema(messageLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertMessageLog = z.infer<typeof insertMessageLogSchema>;
+export type MessageLog = typeof messageLogs.$inferSelect;

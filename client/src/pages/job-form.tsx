@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { insertJobSchema, type Job, type JobSkillRequirement } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Plus, X } from "lucide-react";
+import { ArrowLeft, Plus, X, Building2, Repeat } from "lucide-react";
 import { JobLocationPicker } from "@/components/job-location-picker";
 import {
   Select,
@@ -21,6 +22,8 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FormDescription } from "@/components/ui/form";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +35,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { insertDepartmentSchema, type InsertDepartment } from "@shared/schema";
 
 const skillRequirementFormSchema = z.object({
   skill: z
@@ -55,8 +66,19 @@ const skillRequirementFormSchema = z.object({
 
 type JobSkillRequirementFormValue = z.infer<typeof skillRequirementFormSchema>;
 
+const recurrencePatternSchema = z.object({
+  type: z.enum(["daily", "weekly", "monthly"]),
+  interval: z.number().int().min(1),
+  daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
+  endDate: z.string().optional(),
+}).optional().nullable();
+
 const jobFormSchema = insertJobSchema.extend({
   skillRequirements: z.array(skillRequirementFormSchema).default([]),
+  recurrencePattern: recurrencePatternSchema,
+}).extend({
+  departmentId: z.string().nullable().optional(),
+  isRecurring: z.boolean().optional(),
 });
 
 type JobFormValues = z.infer<typeof jobFormSchema>;
@@ -86,12 +108,18 @@ type SkillAvailabilityResponse = {
   skills: SkillAvailabilitySummary[];
 };
 
-type JobSubmissionPayload = Omit<JobFormValues, "skillRequirements"> & {
+type JobSubmissionPayload = Omit<JobFormValues, "skillRequirements" | "recurrencePattern"> & {
   skillRequirements: Array<{
     skill: string;
     headcount: number;
     notes: string | null;
   }>;
+  recurrencePattern?: {
+    type: "daily" | "weekly" | "monthly";
+    interval: number;
+    daysOfWeek?: number[];
+    endDate?: string;
+  } | null;
 };
 
 export default function JobForm() {
@@ -99,6 +127,7 @@ export default function JobForm() {
   const [, params] = useRoute("/jobs/:id/edit");
   const { toast } = useToast();
   const isEdit = !!params?.id;
+  const [isCreateDeptDialogOpen, setIsCreateDeptDialogOpen] = React.useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = React.useState(false);
   const [isCancellingJob, setIsCancellingJob] = React.useState(false);
 
@@ -129,12 +158,50 @@ export default function JobForm() {
       requiredHeadcount: undefined,
       notes: "",
       skillRequirements: [],
+      departmentId: null,
+      isRecurring: false,
+      recurrencePattern: null,
+    },
+  });
+
+  const { data: departments, refetch: refetchDepartments } = useQuery({
+    queryKey: ["/api/departments"],
+  });
+
+  // Department creation mutation
+  const createDepartmentMutation = useMutation({
+    mutationFn: async (data: InsertDepartment) => {
+      const response = await apiRequest("POST", "/api/departments", data);
+      return response.json();
+    },
+    onSuccess: (newDepartment) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/departments"] });
+      refetchDepartments();
+      // Auto-select the newly created department
+      form.setValue("departmentId", newDepartment.id);
+      setIsCreateDeptDialogOpen(false);
+      toast({
+        title: "Department Created",
+        description: `${newDepartment.name} has been created and selected`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create department",
+        variant: "destructive",
+      });
     },
   });
 
   const { data: skillAvailability } = useQuery<SkillAvailabilityResponse>({
     queryKey: ["/api/skills/availability"],
   });
+
+  const isRecurring = form.watch("isRecurring");
+  const recurrencePattern = form.watch("recurrencePattern");
+  const departmentId = form.watch("departmentId");
+  const previousDeptAddressRef = React.useRef<string | null>(null);
 
   const {
     fields: skillRequirementFields,
@@ -359,8 +426,22 @@ export default function JobForm() {
     }
   }, [params?.id, setLocation, toast]);
 
+  // Track if form has been initialized to prevent multiple resets
+  const formInitializedRef = React.useRef<string | null>(null);
+
   React.useEffect(() => {
-    if (isEdit && job) {
+    // Only reset form once per job when data is loaded
+    if (isEdit && job && !isLoading && formInitializedRef.current !== job.id) {
+      let parsedRecurrencePattern = null;
+      if (job.recurrencePattern) {
+        try {
+          parsedRecurrencePattern = typeof job.recurrencePattern === 'string' 
+            ? JSON.parse(job.recurrencePattern) 
+            : job.recurrencePattern;
+        } catch (e) {
+          console.error("Failed to parse recurrence pattern", e);
+        }
+      }
       form.reset({
         name: job.name,
         location: job.location,
@@ -368,6 +449,9 @@ export default function JobForm() {
         endTime: new Date(job.endTime),
         requiredHeadcount: job.requiredHeadcount || undefined,
         notes: job.notes || "",
+        departmentId: job.departmentId || null,
+        isRecurring: job.isRecurring || false,
+        recurrencePattern: parsedRecurrencePattern,
         skillRequirements:
           job.skillRequirements?.map((requirement) => ({
             skill: requirement.skill ?? "",
@@ -375,16 +459,9 @@ export default function JobForm() {
             notes: requirement.notes ?? "",
           })) ?? [],
       });
+      formInitializedRef.current = job.id;
     }
-  }, [job, isEdit, form]);
-
-  if (isEdit && isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" aria-label="Loading" />
-      </div>
-    );
-  }
+  }, [job, isEdit, isLoading, form]);
 
   const onSubmit = (values: JobFormValues) => {
     const sanitizedSkillRequirements = values.skillRequirements
@@ -406,6 +483,8 @@ export default function JobForm() {
       ...values,
       notes: jobNotes,
       skillRequirements: sanitizedSkillRequirements,
+      departmentId: values.departmentId || null,
+      recurrencePattern: values.isRecurring && values.recurrencePattern ? values.recurrencePattern : null,
     };
 
     if (isEdit) {
@@ -414,6 +493,48 @@ export default function JobForm() {
       createMutation.mutate(payload);
     }
   };
+
+  React.useEffect(() => {
+    if (!departmentId || !departments) return;
+    const selectedDept = departments.find((dept) => dept.id === departmentId);
+    const address = selectedDept?.address?.trim();
+    if (!address) return;
+
+    const currentLocation = form.getValues("location")?.toString() ?? "";
+    const previousAddress = previousDeptAddressRef.current;
+
+    if (currentLocation.trim() === "" || (previousAddress && currentLocation === previousAddress)) {
+      form.setValue("location", address);
+    }
+
+    previousDeptAddressRef.current = address;
+  }, [departmentId, departments, form]);
+
+  // Show loading state if editing and data is loading
+  if (isEdit && isLoading) {
+    return (
+      <div className="max-w-2xl">
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 mb-4"
+            onClick={() => setLocation("/")}
+            data-testid="link-back-dashboard"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Button>
+          <h1 className="text-3xl font-semibold" data-testid="text-page-title">
+            Edit Job
+          </h1>
+        </div>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" aria-label="Loading" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl">
@@ -678,6 +799,53 @@ export default function JobForm() {
 
               <FormField
                 control={form.control}
+                name="departmentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center justify-between">
+                      <FormLabel className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        Department (Optional)
+                      </FormLabel>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 h-7 text-xs"
+                        onClick={() => setIsCreateDeptDialogOpen(true)}
+                      >
+                        <Plus className="h-3 w-3" />
+                        Create New
+                      </Button>
+                    </div>
+                    <Select
+                      value={field.value || "__none__"}
+                      onValueChange={(value) => field.onChange(value === "__none__" ? null : value)}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-department">
+                          <SelectValue placeholder="Select a department" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__none__">No Department</SelectItem>
+                        {departments?.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Assign this job to a specific department (e.g., ICU, Emergency, IT Support). Some jobs may not belong to any department.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name="location"
                 render={({ field }) => (
                   <FormItem>
@@ -696,6 +864,18 @@ export default function JobForm() {
                   </FormItem>
                 )}
               />
+
+              <Dialog open={isCreateDeptDialogOpen} onOpenChange={setIsCreateDeptDialogOpen}>
+                <DialogContent>
+                  <CreateDepartmentDialog
+                    onCreate={(dept) => {
+                      createDepartmentMutation.mutate(dept);
+                    }}
+                    onCancel={() => setIsCreateDeptDialogOpen(false)}
+                    isLoading={createDepartmentMutation.isPending}
+                  />
+                </DialogContent>
+              </Dialog>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <FormField
@@ -823,6 +1003,183 @@ export default function JobForm() {
                 }}
               />
 
+              <div className="space-y-4 rounded-lg border p-4">
+                <FormField
+                  control={form.control}
+                  name="isRecurring"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked);
+                            if (!checked) {
+                              form.setValue("recurrencePattern", null);
+                            }
+                          }}
+                          data-testid="checkbox-recurring-job"
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="flex items-center gap-2">
+                          <Repeat className="h-4 w-4" />
+                          Recurring Job
+                        </FormLabel>
+                        <FormDescription>
+                          Create multiple instances of this job based on a schedule pattern (e.g., daily cleaning, weekly meetings)
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                {isRecurring && (
+                  <div className="space-y-4 pl-7">
+                    <FormField
+                      control={form.control}
+                      name="recurrencePattern.type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Recurrence Type</FormLabel>
+                          <Select
+                            value={field.value || ""}
+                            onValueChange={(value) => {
+                              field.onChange(value);
+                              // Reset pattern when type changes
+                              form.setValue("recurrencePattern", {
+                                type: value as "daily" | "weekly" | "monthly",
+                                interval: 1,
+                              });
+                            }}
+                          >
+                            <FormControl>
+                              <SelectTrigger data-testid="select-recurrence-type">
+                                <SelectValue placeholder="Select recurrence type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="daily">Daily</SelectItem>
+                              <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="monthly">Monthly</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {recurrencePattern?.type && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="recurrencePattern.interval"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Interval</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={field.value || 1}
+                                  onChange={(e) => {
+                                    const interval = parseInt(e.target.value) || 1;
+                                    field.onChange(interval);
+                                    form.setValue("recurrencePattern", {
+                                      ...recurrencePattern,
+                                      interval,
+                                    });
+                                  }}
+                                  data-testid="input-recurrence-interval"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Every {field.value || 1} {recurrencePattern?.type === "daily" ? "day(s)" : recurrencePattern?.type === "weekly" ? "week(s)" : "month(s)"}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {recurrencePattern?.type === "weekly" && (
+                          <FormField
+                            control={form.control}
+                            name="recurrencePattern.daysOfWeek"
+                            render={({ field }) => {
+                              const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                              const selectedDays = field.value || [];
+
+                              return (
+                                <FormItem>
+                                  <FormLabel>Days of Week</FormLabel>
+                                  <div className="flex flex-wrap gap-3">
+                                    {days.map((day, index) => (
+                                      <div key={index} className="flex items-center space-x-2">
+                                        <Checkbox
+                                          checked={selectedDays.includes(index)}
+                                          onCheckedChange={(checked) => {
+                                            const newDays = checked
+                                              ? [...selectedDays, index].sort()
+                                              : selectedDays.filter((d) => d !== index);
+                                            field.onChange(newDays);
+                                            form.setValue("recurrencePattern", {
+                                              ...recurrencePattern,
+                                              daysOfWeek: newDays,
+                                            });
+                                          }}
+                                          id={`day-${index}`}
+                                          data-testid={`checkbox-day-${index}`}
+                                        />
+                                        <Label
+                                          htmlFor={`day-${index}`}
+                                          className="text-sm font-normal cursor-pointer"
+                                        >
+                                          {day.slice(0, 3)}
+                                        </Label>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <FormMessage />
+                                </FormItem>
+                              );
+                            }}
+                          />
+                        )}
+
+                        <FormField
+                          control={form.control}
+                          name="recurrencePattern.endDate"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>End Date (Optional)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="date"
+                                  value={field.value ? new Date(field.value).toISOString().split("T")[0] : ""}
+                                  onChange={(e) => {
+                                    const endDate = e.target.value ? new Date(e.target.value).toISOString() : undefined;
+                                    field.onChange(endDate);
+                                    form.setValue("recurrencePattern", {
+                                      ...recurrencePattern,
+                                      endDate: endDate,
+                                    });
+                                  }}
+                                  data-testid="input-recurrence-end-date"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Leave empty to create recurring jobs indefinitely (up to 1000 instances)
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <FormField
                 control={form.control}
                 name="notes"
@@ -895,5 +1252,93 @@ export default function JobForm() {
         </Form>
       </Card>
     </div>
+  );
+}
+
+function CreateDepartmentDialog({
+  onCreate,
+  onCancel,
+  isLoading,
+}: {
+  onCreate: (data: InsertDepartment) => void;
+  onCancel: () => void;
+  isLoading: boolean;
+}) {
+  const deptForm = useForm<InsertDepartment>({
+    resolver: zodResolver(insertDepartmentSchema),
+    defaultValues: {
+      name: "",
+      description: null,
+    },
+  });
+
+  const handleSubmit = (data: InsertDepartment) => {
+    onCreate(data);
+    deptForm.reset();
+  };
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Create New Department</DialogTitle>
+      </DialogHeader>
+      <Form {...deptForm}>
+        <form onSubmit={deptForm.handleSubmit(handleSubmit)} className="space-y-4">
+          <FormField
+            control={deptForm.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Department Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., ICU, Emergency, IT Support" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={deptForm.control}
+            name="description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Description (Optional)</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Add a description for this department..."
+                    className="resize-none"
+                    {...field}
+                    value={field.value || ""}
+                    onChange={(e) => field.onChange(e.target.value || null)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                deptForm.reset();
+                onCancel();
+              }}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && (
+                <div className="animate-spin w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full mr-2" />
+              )}
+              Create Department
+            </Button>
+          </DialogFooter>
+        </form>
+      </Form>
+    </>
   );
 }

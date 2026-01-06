@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, Building2 } from "lucide-react";
 import type { Template, Contact, Job, JobSkillRequirement } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +34,7 @@ export default function SendMessage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeSkillFilters, setActiveSkillFilters] = useState<string[]>([]);
   const [activeStatusFilters, setActiveStatusFilters] = useState<string[]>([]);
+  const [activeDepartmentFilter, setActiveDepartmentFilter] = useState<string | null>(null);
 
   const { data: job } = useQuery<JobWithSkills>({
     queryKey: ["/api/jobs", params?.id],
@@ -48,6 +49,17 @@ export default function SendMessage() {
   const { data: contacts } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
   });
+
+  // Fetch departments for the job
+  const { data: departments } = useQuery<Array<{ id: string; name: string; description?: string | null }>>({
+    queryKey: ["/api/departments"],
+  });
+
+  // Get job's department
+  const jobDepartment = React.useMemo(() => {
+    if (!job?.departmentId || !departments || !Array.isArray(departments)) return null;
+    return departments.find((d) => d.id === job.departmentId);
+  }, [job?.departmentId, departments]);
 
   const sendMutation = useMutation({
     mutationFn: async (data: { jobId: string; templateId: string; contactIds: string[] }) => {
@@ -243,10 +255,20 @@ export default function SendMessage() {
             </Button>
           </a>
         </Link>
-        <h1 className="text-3xl font-semibold" data-testid="text-page-title">Send Message</h1>
-        <p className="text-muted-foreground mt-1">
-          {job?.name} - Broadcast to your crew
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold" data-testid="text-page-title">Send Message</h1>
+            <p className="text-muted-foreground mt-1">
+              {job?.name} - Broadcast to your crew
+            </p>
+            {jobDepartment && (
+              <Badge variant="outline" className="mt-2 gap-1.5">
+                <Building2 className="h-3 w-3" />
+                {jobDepartment.name}
+              </Badge>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -376,58 +398,15 @@ export default function SendMessage() {
                 </div>
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {filteredContacts.map((contact) => (
-                  <div
-                    key={contact.id}
-                    className={`flex items-center gap-3 p-3 rounded-lg border hover-elevate cursor-pointer ${
-                      contact.skills &&
-                      contact.skills.length > 0 &&
-                      contact.skills
-                        .map(normalizeSkill)
-                        .some((skill) => outstandingSkillKeys.has(skill))
-                        ? "border-primary bg-primary/5"
-                        : ""
-                    }`}
-                    onClick={() => toggleContact(contact.id)}
-                    data-testid={`contact-item-${contact.id}`}
-                  >
-                    <Checkbox
-                      checked={selectedContacts.includes(contact.id)}
-                      onCheckedChange={() => toggleContact(contact.id)}
+                    <ContactListItem
+                      key={contact.id}
+                      contact={contact}
+                      jobDepartmentId={job?.departmentId}
+                      selectedContacts={selectedContacts}
+                      outstandingSkillKeys={outstandingSkillKeys}
+                      onToggle={() => toggleContact(contact.id)}
                     />
-                    <Avatar className="h-10 w-10">
-                      {contact.profilePicture && (
-                        <AvatarImage
-                          src={contact.profilePicture}
-                          alt={`${contact.firstName} ${contact.lastName}`}
-                        />
-                      )}
-                      <AvatarFallback>
-                        {contact.firstName[0]}{contact.lastName[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm">
-                        {contact.firstName} {contact.lastName}
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate">{contact.phone}</div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {(contact.skills ?? []).length > 0 ? (
-                          (contact.skills ?? []).map((skill) => (
-                            <Badge
-                              key={`${contact.id}-${skill}`}
-                              variant="outline"
-                              className="text-xs font-normal"
-                            >
-                              {skill}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">No skills added</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  ))}
                   {contacts && filteredContacts.length === 0 && (
                     <div className="text-sm text-muted-foreground py-4 text-center">
                       No contacts match the current filters.
@@ -503,6 +482,106 @@ export default function SendMessage() {
               </Button>
             </CardContent>
           </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Component for contact list item with department highlighting
+function ContactListItem({
+  contact,
+  jobDepartmentId,
+  selectedContacts,
+  outstandingSkillKeys,
+  onToggle,
+}: {
+  contact: Contact;
+  jobDepartmentId?: string | null;
+  selectedContacts: string[];
+  outstandingSkillKeys: Set<string>;
+  onToggle: () => void;
+}) {
+  const normalizeSkill = (value: string | null | undefined) => value?.trim().toLowerCase() ?? "";
+
+  const { data: contactDepts } = useQuery({
+    queryKey: ["/api/contacts", contact.id, "departments"],
+    queryFn: async () => {
+      const res = await fetch(`/api/contacts/${contact.id}/departments`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!contact.id,
+  });
+
+  const matchesJobDepartment = jobDepartmentId && contactDepts?.some((d: any) => d.id === jobDepartmentId);
+  const hasOutstandingSkills = contact.skills &&
+    contact.skills.length > 0 &&
+    contact.skills
+      .map(normalizeSkill)
+      .some((skill) => outstandingSkillKeys.has(skill));
+
+  return (
+    <div
+      className={`flex items-center gap-3 p-3 rounded-lg border hover-elevate cursor-pointer ${
+        hasOutstandingSkills
+          ? "border-primary bg-primary/5"
+          : matchesJobDepartment
+          ? "border-green-500 bg-green-50 dark:bg-green-950/20"
+          : ""
+      }`}
+      onClick={onToggle}
+      data-testid={`contact-item-${contact.id}`}
+    >
+      <Checkbox
+        checked={selectedContacts.includes(contact.id)}
+        onCheckedChange={onToggle}
+      />
+      <Avatar className="h-10 w-10">
+        {contact.profilePicture && (
+          <AvatarImage
+            src={contact.profilePicture}
+            alt={`${contact.firstName} ${contact.lastName}`}
+          />
+        )}
+        <AvatarFallback>
+          {contact.firstName[0]}{contact.lastName[0]}
+        </AvatarFallback>
+      </Avatar>
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-sm">
+          {contact.firstName} {contact.lastName}
+        </div>
+        <div className="text-xs text-muted-foreground truncate">{contact.phone}</div>
+        {contactDepts && contactDepts.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {contactDepts.map((dept: any) => (
+              <Badge
+                key={dept.id}
+                variant={dept.id === jobDepartmentId ? "default" : "outline"}
+                className="text-xs font-normal gap-1"
+              >
+                <Building2 className="h-2.5 w-2.5" />
+                {dept.name}
+                {dept.id === jobDepartmentId && <span className="ml-1">✓</span>}
+              </Badge>
+            ))}
+          </div>
+        )}
+        <div className="mt-1 flex flex-wrap gap-1">
+          {(contact.skills ?? []).length > 0 ? (
+            (contact.skills ?? []).map((skill) => (
+              <Badge
+                key={`${contact.id}-${skill}`}
+                variant="outline"
+                className="text-xs font-normal"
+              >
+                {skill}
+              </Badge>
+            ))
+          ) : (
+            <span className="text-xs text-muted-foreground italic">No skills added</span>
+          )}
         </div>
       </div>
     </div>

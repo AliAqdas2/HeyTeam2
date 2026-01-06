@@ -42,6 +42,11 @@ export async function setupVite(app: Express, server: Server) {
 
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
+    // Don't serve React app for .well-known paths - let API routes handle them
+    if (req.path.startsWith('/.well-known/')) {
+      return next();
+    }
+
     const url = req.originalUrl;
 
     try {
@@ -79,7 +84,12 @@ export function serveStatic(app: Express) {
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
+  // But exclude .well-known paths (handled by API routes)
+  app.use("*", (req, res, next) => {
+    // Don't serve React app for .well-known paths - let API routes handle them
+    if (req.path.startsWith('/.well-known/')) {
+      return next();
+    }
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

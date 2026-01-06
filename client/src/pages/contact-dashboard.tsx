@@ -5,9 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Calendar, Briefcase, Bell, MessageSquare, Clock, MapPin } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "wouter";
-import { getContactQueryFn } from "@/lib/contactApiClient";
-import { Capacitor } from "@capacitor/core";
-import { cn } from "@/lib/utils";
 
 type JobWithStatus = {
   id: string;
@@ -34,37 +31,18 @@ type Invitation = {
 };
 
 export default function ContactDashboard() {
-  const isMobileLayout = Capacitor.isNativePlatform();
-  
   const { data: contact } = useQuery({
-    queryKey: ["/api/mobile/auth/me"],
-    queryFn: getContactQueryFn,
-    retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryKey: ["/api/auth/me"],
   });
 
   const { data: scheduleData } = useQuery<{ upcoming: JobWithStatus[]; past: JobWithStatus[] }>({
     queryKey: ["/api/contact/schedule"],
-    queryFn: getContactQueryFn,
     enabled: !!contact,
-    retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: true,
-    refetchInterval: 5000, // Refetch every 5 seconds
-    staleTime: 0, // Always consider data stale to allow refetching
   });
 
   const { data: invitationsData } = useQuery<{ invitations: Invitation[] }>({
     queryKey: ["/api/contact/invitations"],
-    queryFn: getContactQueryFn,
     enabled: !!contact,
-    retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: true,
-    refetchInterval: 5000, // Refetch every 5 seconds
-    staleTime: 0, // Always consider data stale to allow refetching
   });
 
   const upcomingCount = scheduleData?.upcoming?.length || 0;
@@ -75,27 +53,16 @@ export default function ContactDashboard() {
   const nextJob = scheduleData?.upcoming?.[0];
 
   return (
-    <div className={cn("space-y-6", isMobileLayout && "space-y-3")}>
-      {!isMobileLayout && (
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold">Dashboard</h1>
         <p className="text-muted-foreground mt-1">
           Welcome back, {contact?.firstName}! Here's an overview of your jobs and invitations.
         </p>
       </div>
-      )}
-      
-      {isMobileLayout && (
-        <div>
-          <h1 className="text-xl font-semibold">Welcome back, {contact?.firstName}!</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Here's an overview of your jobs and invitations.
-          </p>
-        </div>
-      )}
 
       {/* Stats Cards */}
-      <div className={cn("grid gap-4", isMobileLayout ? "grid-cols-3" : "grid-cols-1 md:grid-cols-3")}>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Upcoming Jobs</CardTitle>

@@ -5,10 +5,8 @@ const config: CapacitorConfig = {
   appName: 'HeyTeam',
   webDir: 'dist/public',
   server: {
-    // In production, this should be undefined to use the built files
-    // For development, you can set url to your dev server
-    // url: 'http://localhost:5000',
-    // cleartext: true
+    // Use HTTPS scheme for Android local server (required for secure context)
+    androidScheme: 'https',
   },
   ios: {
     contentInset: 'automatic',
@@ -16,7 +14,7 @@ const config: CapacitorConfig = {
   },
   android: {
     allowMixedContent: true,
-    adjustMarginsForEdgeToEdge: 'disable', // Disable edge-to-edge to avoid API 35 compilation issues
+    adjustMarginsForEdgeToEdge: 'disable',
   },
   plugins: {
     SplashScreen: {
@@ -36,6 +34,9 @@ const config: CapacitorConfig = {
     },
     CapacitorCookies: {
       enabled: true,
+    },
+    CapacitorHttp: {
+      enabled: false,
     },
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],

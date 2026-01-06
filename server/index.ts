@@ -4,7 +4,9 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import cors from "cors";
 import { registerRoutes } from "./routes";
+import { getTwilioClient, getTwilioFromPhoneNumber } from "./lib/twilio-client";
 import { setupVite, serveStatic, log } from "./vite";
+import { processPendingSmsFallbacks, initCronDependencies } from "./cron-jobs";
 
 const MemoryStore = createMemoryStore(session);
 
@@ -32,7 +34,14 @@ app.use(cors({
 }));
 
 
-app.use(express.json());
+// Parse JSON for all routes EXCEPT Stripe webhook (which needs raw body for signature verification)
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/stripe/webhook') {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
 app.use(express.urlencoded({ extended: false }));
 
 // Session configuration
@@ -107,5 +116,21 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || '5000', 10);
   server.listen(port, () => {
     log(`serving on port ${port}`);
+    
+    // Initialize cron job dependencies
+    const baseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${port}`;
+    initCronDependencies(getTwilioClient, getTwilioFromPhoneNumber, baseUrl);
+    
+    // Start SMS fallback cron job - runs every 15 seconds
+    const SMS_FALLBACK_INTERVAL = 15000; // 15 seconds
+    setInterval(async () => {
+      try {
+        await processPendingSmsFallbacks();
+      } catch (error) {
+        console.error("[CronScheduler] SMS fallback job error:", error);
+      }
+    }, SMS_FALLBACK_INTERVAL);
+    
+    log(`SMS fallback cron job started (interval: ${SMS_FALLBACK_INTERVAL / 1000}s)`);
   });
 })();
